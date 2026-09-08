@@ -4,15 +4,18 @@ import {
   mockCreatePet,
   mockFeaturedPets,
   mockOrg,
+  mockDeletePhoto,
   mockOrgPets,
   mockPetPage,
   mockSearchPets,
   mockSetAdopted,
+  mockUploadPhoto,
 } from './mock'
 import type {
   ApiOrg,
   ApiOwnPet,
   ApiPet,
+  ApiPetImage,
   ApiPetWithWhatsapp,
   CreatePetPayload,
   CredentialsPayload,
@@ -20,6 +23,7 @@ import type {
   Pet,
   PetPage,
   PetSearchParams,
+  UploadTicket,
 } from './types'
 
 const BASE_URL = import.meta.env.VITE_API_URL?.replace(/\/$/, '') ?? ''
@@ -87,7 +91,7 @@ async function request<T>(path: string, init?: RequestOptions): Promise<T> {
 function messageForStatus(status: number): string {
   if (status === 401) return 'Sua sessão expirou. Entre de novo para continuar.'
   if (status === 403) return 'Esta conta não tem permissão para essa ação.'
-  if (status === 409) return 'Já existe uma ONG cadastrada com esses dados.'
+  if (status === 409) return 'Este cadastro já atingiu o limite ou já existe.'
   if (status >= 500) {
     return 'O servidor não respondeu como esperado. Tente de novo em instantes.'
   }
@@ -104,7 +108,7 @@ function toPet(pet: ApiPetWithWhatsapp, city: string): Pet {
     ...pet,
     city,
     whatsapp: pet.whatsapp || null,
-    photos: pet.images.map((image) => image.url),
+    photos: pet.images,
   }
 }
 
@@ -232,6 +236,90 @@ export async function setPetAdopted(petId: string, adopted: boolean): Promise<vo
   })
 }
 
+/* ── Fotos do pet ─────────────────────────────────────────────────────────── */
+
+/**
+ * Sobe o arquivo direto no R2, sem passar pela API.
+ *
+ * XHR em vez de `fetch` porque só ele reporta progresso de upload, e uma foto
+ * de celular em rede ruim sem barra de progresso parece travada.
+ *
+ * O `Content-Type` precisa ser idêntico ao que assinou a URL — o R2 responde
+ * 403 se divergir. Como ambos saem de `file.type`, batem por construção.
+ */
+function putSignedFile(
+  uploadUrl: string,
+  file: File,
+  onProgress: (ratio: number) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('PUT', uploadUrl)
+    xhr.setRequestHeader('Content-Type', file.type)
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress(event.loaded / event.total)
+    }
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve()
+      else reject(new ApiError('O envio da foto foi recusado pelo servidor de arquivos.', xhr.status))
+    }
+    xhr.onerror = () =>
+      reject(new ApiError('Não foi possível enviar a foto. Verifique sua conexão.'))
+    xhr.onabort = () => reject(new ApiError('Envio cancelado.'))
+
+    xhr.send(file)
+  })
+}
+
+/**
+ * Publica uma foto: pede a URL assinada, sobe o arquivo e confirma.
+ *
+ * A URL é pedida aqui, na hora do envio, e não quando o arquivo é escolhido:
+ * ela expira em cinco minutos, e alguém que escolhe a foto e só depois se
+ * decide perderia a janela. Nada é gravado no banco até o `confirm`, então um
+ * envio interrompido não deixa registro apontando para arquivo inexistente.
+ */
+export async function uploadPetPhoto(
+  petId: string,
+  file: File,
+  onProgress: (ratio: number) => void = () => {},
+): Promise<ApiPetImage> {
+  if (usingMockData) return mockUploadPhoto(petId, file, onProgress)
+
+  const ticket = await request<UploadTicket>(`/pets/${petId}/images`, {
+    method: 'POST',
+    authenticated: true,
+    body: JSON.stringify({ contentType: file.type }),
+  })
+
+  await putSignedFile(ticket.uploadUrl, file, onProgress)
+
+  // NOTA: o formato da resposta do confirm não pôde ser verificado no
+  // repositório (o commit ainda não estava publicado). Aceita tanto o registro
+  // direto quanto envelopado em `{ image }`, para não quebrar com o que vier.
+  const confirmed = await request<ApiPetImage | { image: ApiPetImage }>(
+    `/pets/${petId}/images/confirm`,
+    {
+      method: 'POST',
+      authenticated: true,
+      body: JSON.stringify({ key: ticket.key }),
+    },
+  )
+
+  return 'image' in confirmed ? confirmed.image : confirmed
+}
+
+/** `DELETE /pets/:id/images/:imageId` — remove a foto do pet e do R2. */
+export async function deletePetPhoto(petId: string, imageId: string): Promise<void> {
+  if (usingMockData) return mockDeletePhoto(petId, imageId)
+
+  await request(`/pets/${petId}/images/${imageId}`, {
+    method: 'DELETE',
+    authenticated: true,
+  })
+}
+
 /**
  * `GET /orgs/me/pets` — os pets da própria ONG, adotados inclusive, 20 por
  * página. A org vem do JWT: nada que o cliente mande define de quem é a lista.
@@ -249,6 +337,6 @@ export async function fetchOrgPets(org: ApiOrg, page = 1): Promise<Pet[]> {
     ...pet,
     city: org.city,
     whatsapp: org.whatsapp || null,
-    photos: pet.images.map((image) => image.url),
+    photos: pet.images,
   }))
 }

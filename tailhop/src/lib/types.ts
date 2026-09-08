@@ -74,8 +74,11 @@ export interface ApiOrg {
 export interface Pet extends ApiPet {
   city: string
   whatsapp: string | null
-  /** Fotos publicadas, na ordem em que vieram. Vazio é um estado normal. */
-  photos: string[]
+  /**
+   * Fotos publicadas, na ordem em que vieram. Guarda o registro inteiro, e não
+   * só a URL, porque remover uma foto precisa do id. Vazio é estado normal.
+   */
+  photos: ApiPetImage[]
 }
 
 /* ── Filtros ──────────────────────────────────────────────────────────────── */
@@ -142,4 +145,23 @@ export interface PetPage {
   pet: Pet
   /** `null` quando o perfil da ONG não pôde ser carregado. */
   org: ApiOrg | null
+}
+
+/* ── Upload de fotos ──────────────────────────────────────────────────────── */
+
+/** Tipos que a API assina. O `PUT` precisa mandar exatamente o mesmo. */
+export const UPLOADABLE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
+export type UploadableType = (typeof UPLOADABLE_TYPES)[number]
+
+/** Limite por pet imposto pelo backend; passar disso responde 409. */
+export const MAX_PHOTOS_PER_PET = 3
+
+/**
+ * Resposta de `POST /pets/:id/images`. Nada foi gravado ainda: `key` identifica
+ * o objeto para a confirmação, e `url` é onde ele vai ficar público.
+ */
+export interface UploadTicket {
+  key: string
+  url: string
+  uploadUrl: string
 }

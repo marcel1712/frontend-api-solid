@@ -28,7 +28,7 @@ export function PetPhoto({
   if (photo) {
     return (
       <img
-        src={photo}
+        src={photo.url}
         alt={`Foto de ${pet.name}`}
         loading="lazy"
         className={`size-full object-cover ${className}`}

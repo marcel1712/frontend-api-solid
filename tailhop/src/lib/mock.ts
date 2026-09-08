@@ -3,11 +3,13 @@ import { matchesAgeGroup } from './format'
 import type {
   ApiOrg,
   ApiPet,
+  ApiPetImage,
   CreatePetPayload,
   Pet,
   PetPage,
   PetSearchParams,
 } from './types'
+import { MAX_PHOTOS_PER_PET } from './types'
 
 /**
  * Dados fictícios usados quando `VITE_API_URL` não está definida, para o site
@@ -298,4 +300,66 @@ export async function mockPetPage(petId: string): Promise<PetPage> {
   if (!pet) throw new ApiError('Este pet não está mais anunciado.', 404)
 
   return { pet, org: { ...MOCK_ORG, id: pet.orgId, city: pet.city } }
+}
+
+/* ── Fotos na demonstração ────────────────────────────────────────────────── */
+
+/**
+ * Sem R2 por trás, a foto vira uma data URL guardada no navegador. O caminho
+ * é o mesmo do fluxo real — pedir, subir, confirmar — só que sem rede, então a
+ * tela exercita os mesmos estados de progresso e erro.
+ */
+export async function mockUploadPhoto(
+  petId: string,
+  file: File,
+  onProgress: (ratio: number) => void,
+): Promise<ApiPetImage> {
+  const pet = PETS.find((candidate) => candidate.id === petId)
+  if (!pet) throw new ApiError('Este pet não está mais anunciado.', 404)
+  if (pet.photos.length >= MAX_PHOTOS_PER_PET) {
+    throw new ApiError(`Um pet pode ter no máximo ${MAX_PHOTOS_PER_PET} fotos.`, 409)
+  }
+
+  for (let step = 1; step <= 5; step++) {
+    await delay(140)
+    onProgress(step / 5)
+  }
+
+  const url = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(new ApiError('Não foi possível ler o arquivo.'))
+    reader.readAsDataURL(file)
+  })
+
+  const image: ApiPetImage = {
+    id: `img-${Date.now()}`,
+    petId,
+    key: `pets/${petId}/${Date.now()}`,
+    url,
+    created_at: new Date().toISOString(),
+  }
+
+  pet.photos = [...pet.photos, image]
+  persistDemoPet(pet)
+  return image
+}
+
+export async function mockDeletePhoto(petId: string, imageId: string): Promise<void> {
+  await delay(400)
+  const pet = PETS.find((candidate) => candidate.id === petId)
+  if (!pet) throw new ApiError('Este pet não está mais anunciado.', 404)
+
+  pet.photos = pet.photos.filter((photo) => photo.id !== imageId)
+  persistDemoPet(pet)
+}
+
+/** Mantém no navegador o pet alterado durante a demonstração. */
+function persistDemoPet(pet: Pet) {
+  try {
+    const others = loadDemoPets().filter((stored) => stored.id !== pet.id)
+    localStorage.setItem(DEMO_PETS_KEY, JSON.stringify([pet, ...others]))
+  } catch {
+    // Navegador sem armazenamento: a mudança vale só para esta sessão.
+  }
 }

@@ -23,7 +23,7 @@ function Gallery({ pet }: { pet: Pet }) {
       <div className="overflow-hidden rounded-[2rem] bg-shell">
         {photos.length ? (
           <img
-            src={photos[active]}
+            src={photos[active].url}
             alt={`Foto de ${pet.name}`}
             className="aspect-square w-full object-cover"
           />
@@ -36,7 +36,7 @@ function Gallery({ pet }: { pet: Pet }) {
         <div className="flex flex-wrap gap-3">
           {photos.map((photo, index) => (
             <button
-              key={photo}
+              key={photo.id}
               type="button"
               aria-label={`Ver foto ${index + 1} de ${photos.length}`}
               aria-current={index === active}
@@ -47,7 +47,7 @@ function Gallery({ pet }: { pet: Pet }) {
                 index === active ? 'ring-2 ring-brand' : 'opacity-70 hover:opacity-100'
               }`}
             >
-              <img src={photo} alt="" className="size-full object-cover" />
+              <img src={photo.url} alt="" className="size-full object-cover" />
             </button>
           ))}
         </div>
