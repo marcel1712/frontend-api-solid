@@ -55,6 +55,10 @@ found a home:
 | --- | --- | --- |
 | ![Shelter sign in](docs/org-login.png) | ![Shelter dashboard](docs/org-dashboard.png) | ![Publish a pet form](docs/new-pet.png) |
 
+| Photos, uploaded straight to R2 |
+| --- |
+| ![Managing a pet's photos](docs/pet-photos.png) |
+
 | Shelter signup |
 | --- |
 | ![Shelter signup](docs/org-signup.png) |
@@ -134,6 +138,17 @@ pointing at the header, the listing turns into the question when no city is set
 — headline, reason and an autofocused field in one place — and the filters stay
 hidden, since none of them do anything on their own. An empty screen is an
 invitation to act, not a sign saying the form is incomplete.
+
+**A three-step upload, ordered so nothing is left behind.** Photos go to
+Cloudflare R2 without passing through the API: ask for a signed URL, `PUT` the
+file straight to the bucket, then confirm so the record is written only once
+the object exists. The client asks for the URL at send time, not when the file
+is picked — it expires in five minutes, and someone who chooses a photo and
+then hesitates would lose the window. `XMLHttpRequest` instead of `fetch`,
+because only it reports upload progress, and a phone photo on a bad connection
+with no progress bar looks frozen. Wrong file type and oversized files are
+refused before any of that: the signature only covers three MIME types, and an
+8 MB file shouldn't cross the network to be rejected at the end.
 
 **A page for what the card can't hold.** A card shows two lines of bio; a
 shelter writes six, and the part that gets cut is usually the part that decides
@@ -245,10 +260,6 @@ Deliberately out of scope for now, and why:
   `registerOrg` is written and typed against `POST /orgs`; wiring it up is one
   call. Note the API also requires `password` and `address`, which the approved
   design doesn't collect.
-- **Photo upload.** The API stores images on R2 and hands back a signed URL
-  (`POST /pets/:id/images` → `{ id, url, uploadUrl }`, then `PUT` the file).
-  Photos are shown everywhere already; the upload UI belongs on the pet's own
-  page, since a pet needs an id before a file can be attached to it.
 - **Pagination.** Both listings take the first 20. Enough for the data that
   exists, and the endpoints already accept `page`.
 - **`Ferret` can't be registered.** The Prisma enum spells it `Ferret` but the
