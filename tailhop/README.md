@@ -7,7 +7,7 @@
 **A pet adoption platform that connects animal shelters to people looking to adopt.**
 
 Search for pets in your city, filter by age, size and species, and reach the
-shelter straight on WhatsApp.
+shelter straight on WhatsApp. Shelters sign in to publish the pets they rescue.
 
 React 19 · TypeScript · Vite · Tailwind CSS v4
 
@@ -42,6 +42,12 @@ layer for them, not patched in the client because it was quicker.
 | Pet listing | Shelter signup |
 | --- | --- |
 | ![Pet listing](docs/listing.png) | ![Shelter signup](docs/org-signup.png) |
+
+The authenticated side, where a shelter manages what it has published:
+
+| Sign in | Shelter dashboard | Publish a pet |
+| --- | --- | --- |
+| ![Shelter sign in](docs/org-login.png) | ![Shelter dashboard](docs/org-dashboard.png) | ![Publish a pet form](docs/new-pet.png) |
 
 <table>
 <tr>
@@ -112,6 +118,14 @@ identical "Adopt" buttons is useless to a screen reader.
 
 **Filters live in the URL.** A search survives a reload and can be shared.
 
+**Session handling that doesn't fight the user.** The saved session is restored
+synchronously, before the first render, so a refresh on a private page never
+flashes the login screen and never lets a child fire an authenticated request
+before the token is armed. An expired token is discarded on load rather than
+after a failed submit, so a shelter doesn't fill in a whole form to be told to
+log in again. A `401` mid-flow sends them to sign in instead of showing a dead
+end.
+
 **It works before the backend is deployed.** With no `VITE_API_URL` set, the
 client serves fictional data with the same shape, so the site is demoable on
 its own. Pointing it at the real API is one environment variable.
@@ -120,18 +134,24 @@ its own. Pointing it at the real API is one environment variable.
 
 ```
 src/
-├── assets/            # Logo and hero artwork
-├── components/        # Logo, PetCard, CitySearch, Header, Footer
+├── assets/              # Logo and hero artwork
+├── components/
+│   ├── ui.tsx           # Button, Field, TextArea, Select, Callout
+│   ├── button-styles.ts # One definition of the pill, shared by button and link
+│   ├── PetCard.tsx      # The card, used by the home showcase and the listing
+│   ├── RequireAuth.tsx  # Route guard for the shelter area
+│   └── …                # Logo, CitySearch, Header, Footer, OrgShell
 ├── lib/
-│   ├── api.ts         # Typed API client — every network call goes through here
-│   ├── types.ts       # API contracts, kept separate from the view model
-│   ├── format.ts      # Portuguese labels, age ranges, WhatsApp links
-│   ├── mock.ts        # Fictional data used when no API is configured
-│   └── useRequest.ts  # Shared loading and error handling
-└── pages/             # Home, Pets, OrgSignup, NotFound
+│   ├── api.ts           # Typed API client — every network call goes through here
+│   ├── auth.tsx         # Session provider: sign in, sign out, restore
+│   ├── types.ts         # API contracts, kept separate from the view model
+│   ├── format.ts        # Portuguese labels, age ranges, WhatsApp links
+│   ├── mock.ts          # Fictional data used when no API is configured
+│   └── useRequest.ts    # Shared loading and error handling
+└── pages/               # Home, Pets, OrgSignup, OrgLogin, OrgDashboard, NewPet
 ```
 
-Two boundaries carry most of the weight:
+Three boundaries carry most of the weight:
 
 **API types vs. view model.** `ApiPet` mirrors the backend exactly. `Pet` is
 what the UI renders and adds what the screen knows but the endpoint doesn't —
@@ -142,6 +162,15 @@ translation happens once, in the client, so no component knows about the gap.
 showcase and the full listing. A pet with no photo gets a brand tile rather
 than a stock image; a shelter with no number shows that plainly rather than
 linking to a broken `wa.me` address.
+
+**Public site vs. shelter area.** Everything authenticated goes through
+`AuthProvider`, and `api.ts` holds the token so no component passes it around.
+The access token is kept in `localStorage`: the API's refresh cookie is
+`httpOnly` and `SameSite=Strict`, so it can't be used from a frontend on
+another domain, which rules out a silent-refresh flow. That's a deliberate
+tradeoff — `localStorage` is readable by any injected script — and the honest
+fix is a `SameSite=None; Secure` refresh cookie on the API, not a
+sleight-of-hand on the client.
 
 ## Running locally
 
@@ -184,8 +213,16 @@ Deliberately out of scope for now, and why:
   `registerOrg` is written and typed against `POST /orgs`; wiring it up is one
   call. Note the API also requires `password` and `address`, which the approved
   design doesn't collect.
-- **Shelter dashboard.** The API supports authenticated pet management
-  (register a pet, mark as adopted). The UI for it is the natural next milestone.
+- **Marking a pet as adopted.** `PATCH /pets/:id/adopt` exists and is the next
+  action to add to the dashboard.
+- **`GET /orgs/me/pets`.** The dashboard reuses the public city search and keeps
+  the shelter's own pets, because the API has no "my pets" endpoint. That
+  inherits two limits: only the first page of the city, and adopted pets are
+  invisible since the search excludes them.
+- **`Ferret` can't be registered.** The Prisma enum spells it `Ferret` but the
+  register controller validates against `"Furret"`, so neither spelling passes
+  both layers. The option is left out of the form until the API is fixed —
+  offering a choice that always fails is worse than not offering it.
 
 ---
 
