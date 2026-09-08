@@ -39,9 +39,14 @@ layer for them, not patched in the client because it was quicker.
 
 ## Screens
 
-| Pet listing | Shelter signup |
+| Pet listing | Pet page |
 | --- | --- |
-| ![Pet listing](docs/listing.png) | ![Shelter signup](docs/org-signup.png) |
+| ![Pet listing](docs/listing.png) | ![Pet page](docs/pet-details.png) |
+
+City is the only required filter, so with none chosen the whole screen asks for
+one — the question, the reason and the field in the same place:
+
+![Choose a city first](docs/city-first.png)
 
 The authenticated side, where a shelter publishes pets and closes the ads that
 found a home:
@@ -49,6 +54,10 @@ found a home:
 | Sign in | Shelter dashboard | Publish a pet |
 | --- | --- | --- |
 | ![Shelter sign in](docs/org-login.png) | ![Shelter dashboard](docs/org-dashboard.png) | ![Publish a pet form](docs/new-pet.png) |
+
+| Shelter signup |
+| --- |
+| ![Shelter signup](docs/org-signup.png) |
 
 <table>
 <tr>
@@ -119,12 +128,25 @@ identical "Adopt" buttons is useless to a screen reader.
 
 **Filters live in the URL.** A search survives a reload and can be shared.
 
-**A confirmation step where the action is one-way.** Marking a pet as adopted
-removes it from search, and since search never returns adopted pets there is
-nowhere left in the UI to undo it. So the row asks once, inline, and spells out
-the consequence — a modal for a one-line action is ceremony, but doing it on a
-single click would be a trap. The row disappears the moment the API confirms,
-without refetching a list the pet could no longer appear in.
+**Requirements taught by the screen, not by a rule.** Pets are listed by city
+and the API refuses a search without one. Rather than explain that in a note
+pointing at the header, the listing turns into the question when no city is set
+— headline, reason and an autofocused field in one place — and the filters stay
+hidden, since none of them do anything on their own. An empty screen is an
+invitation to act, not a sign saying the form is incomplete.
+
+**A page for what the card can't hold.** A card shows two lines of bio; a
+shelter writes six, and the part that gets cut is usually the part that decides
+an adoption — temperament, history, what the animal needs. So each pet has its
+own page with the full text, the photos, and who is caring for it. The card
+keeps its WhatsApp button for whoever already decided: the pet's name is the
+link, and a pseudo-element stretches the click target across the card without
+nesting a button inside a link, which no screen reader announces correctly.
+
+**A confirmation step where the action is reversible.** Marking a pet as adopted
+takes it out of search immediately, so the row asks once, inline, and says what
+will happen — a modal for a one-line action is ceremony, but a single click
+would be a trap. Reopening doesn't confirm: it is the action that undoes.
 
 **Session handling that doesn't fight the user.** The saved session is restored
 synchronously, before the first render, so a refresh on a private page never
@@ -156,15 +178,17 @@ src/
 │   ├── format.ts        # Portuguese labels, age ranges, WhatsApp links
 │   ├── mock.ts          # Fictional data used when no API is configured
 │   └── useRequest.ts    # Shared loading and error handling
-└── pages/               # Home, Pets, OrgSignup, OrgLogin, OrgDashboard, NewPet
+└── pages/               # Home, Pets, PetDetails, OrgSignup, OrgLogin,
+                         #   OrgDashboard, NewPet
 ```
 
 Three boundaries carry most of the weight:
 
 **API types vs. view model.** `ApiPet` mirrors the backend exactly. `Pet` is
-what the UI renders and adds what the screen knows but the endpoint doesn't —
-the searched city, and a `photoUrl` slot for when image upload ships. The
-translation happens once, in the client, so no component knows about the gap.
+what the UI renders and adds what the screen knows but the endpoint doesn't:
+the city (a pet's city is its shelter's, and no pet endpoint returns it) and a
+flat list of photo URLs. The translation happens once, in the client, so no
+component knows about the gap.
 
 **One card, two screens.** `PetCard` is the same component in the home
 showcase and the full listing. A pet with no photo gets a brand tile rather
@@ -221,12 +245,12 @@ Deliberately out of scope for now, and why:
   `registerOrg` is written and typed against `POST /orgs`; wiring it up is one
   call. Note the API also requires `password` and `address`, which the approved
   design doesn't collect.
-- **`GET /orgs/me/pets`.** The dashboard reuses the public city search and keeps
-  the shelter's own pets, because the API has no "my pets" endpoint. That
-  inherits two limits: only the first page of the city, and adopted pets are
-  invisible since the search excludes them. That second limit is why marking a
-  pet as adopted is one-way in the UI: the API accepts `adopted: false`, but a
-  reverted pet would have no screen to be reverted from.
+- **Photo upload.** The API stores images on R2 and hands back a signed URL
+  (`POST /pets/:id/images` → `{ id, url, uploadUrl }`, then `PUT` the file).
+  Photos are shown everywhere already; the upload UI belongs on the pet's own
+  page, since a pet needs an id before a file can be attached to it.
+- **Pagination.** Both listings take the first 20. Enough for the data that
+  exists, and the endpoints already accept `page`.
 - **`Ferret` can't be registered.** The Prisma enum spells it `Ferret` but the
   register controller validates against `"Furret"`, so neither spelling passes
   both layers. The option is left out of the form until the API is fixed —
