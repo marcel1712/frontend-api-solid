@@ -214,6 +214,26 @@ export async function authenticateOrg(
   return token
 }
 
+/**
+ * A ONG já confirmou o e-mail?
+ *
+ * Campo ausente significa que o backend ainda não implementou a verificação —
+ * e aí ninguém é bloqueado. Tratar ausência como "não verificado" travaria
+ * todas as ONGs que já existem, hoje, por causa de um recurso que ainda não
+ * saiu. Só bloqueia quando a API disser explicitamente `null`.
+ */
+export function isOrgVerified(org: ApiOrg): boolean {
+  const value =
+    'email_verified_at' in org
+      ? org.email_verified_at
+      : 'emailVerifiedAt' in org
+        ? org.emailVerifiedAt
+        : undefined
+
+  if (value === undefined) return true
+  return value !== null
+}
+
 /** `GET /orgs/:id` — perfil público da ONG, já sem o `password_hash`. */
 export async function fetchOrg(id: string): Promise<ApiOrg> {
   if (usingMockData) return mockOrg(id)

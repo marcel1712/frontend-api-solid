@@ -196,9 +196,26 @@ export async function mockAuthenticate(credentials: {
   return fakeToken(MOCK_ORG.id)
 }
 
+/**
+ * Na demonstração dá para simular a conta não verificada com
+ * `localStorage.setItem('tailhop.demo-unverified', '1')`, para conferir o
+ * bloqueio de publicação sem depender do backend.
+ */
 export async function mockOrg(id: string): Promise<ApiOrg> {
   await delay(300)
-  return { ...MOCK_ORG, id }
+
+  let unverified = false
+  try {
+    unverified = localStorage.getItem('tailhop.demo-unverified') === '1'
+  } catch {
+    unverified = false
+  }
+
+  return {
+    ...MOCK_ORG,
+    id,
+    email_verified_at: unverified ? null : MOCK_ORG.created_at,
+  }
 }
 
 /**
