@@ -139,7 +139,7 @@ export const normalizeCity = (value: string) =>
     .toLowerCase()
 
 const delay = (ms: number) =>
-  new Promise((resolve) => {
+  new Promise<void>((resolve) => {
     setTimeout(resolve, ms)
   })
 
@@ -361,5 +361,22 @@ function persistDemoPet(pet: Pet) {
     localStorage.setItem(DEMO_PETS_KEY, JSON.stringify([pet, ...others]))
   } catch {
     // Navegador sem armazenamento: a mudança vale só para esta sessão.
+  }
+}
+
+/* ── Conta na demonstração ────────────────────────────────────────────────── */
+
+/** Simula a latência de um endpoint que só responde 200. */
+export const mockDelay = () => delay(700)
+
+/**
+ * Na demonstração, um token que comece com `expirado` reproduz o caminho de
+ * falha; qualquer outro verifica. Sem isso não haveria como conferir a tela de
+ * link inválido sem um backend.
+ */
+export async function mockVerifyEmail(token: string): Promise<void> {
+  await delay(900)
+  if (!token || token.startsWith('expirado')) {
+    throw new ApiError('Este link de verificação expirou ou já foi usado.', 400)
   }
 }

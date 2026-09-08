@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { usingMockData } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { CitySearch } from './CitySearch'
 import { Logo } from './Logo'
@@ -92,7 +93,9 @@ export function Footer() {
       <div className="mx-auto flex max-w-6xl flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
         <Logo />
         <p className="text-sm font-bold text-ink-soft">
-          Projeto de portfólio — todos os dados são fictícios.
+          {usingMockData
+            ? 'Modo demonstração — todos os dados são fictícios.'
+            : 'Pets anunciados por ONGs parceiras. O contato acontece no WhatsApp delas.'}
         </p>
         <a
           href={GITHUB_URL}

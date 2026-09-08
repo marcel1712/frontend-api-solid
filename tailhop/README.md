@@ -59,9 +59,15 @@ found a home:
 | --- |
 | ![Managing a pet's photos](docs/pet-photos.png) |
 
-| Shelter signup |
+| Shelter signup, with the password policy |
 | --- |
-| ![Shelter signup](docs/org-signup.png) |
+| ![Shelter signup](docs/password-rules.png) |
+
+Account recovery and verification, reached from links the API emails:
+
+| Forgot password | New password | Email verified |
+| --- | --- | --- |
+| ![Forgot password](docs/forgot-password.png) | ![Set a new password](docs/reset-password.png) | ![Email verified](docs/verify-email.png) |
 
 <table>
 <tr>
@@ -131,6 +137,19 @@ both light and brand backgrounds, labelled form fields, results announced via
 identical "Adopt" buttons is useless to a screen reader.
 
 **Filters live in the URL.** A search survives a reload and can be shared.
+
+**A password policy that says what it is.** Client-side validation is
+guidance, not security — anyone can call `POST /orgs` directly, and the API
+itself only asks for 6 to 100 characters. So the field's job is to help someone
+choose well before they get it wrong: the rules appear only once typing starts,
+each one turns from pending to met as it is satisfied, and a reveal toggle
+makes a long password possible to type correctly. Composition rules alone would
+pass `Senha123!`, so the last rule rejects common words, three-character runs,
+and anything containing the shelter's own email. Worth saying plainly: NIST
+advises against mandating character classes, because they push people toward
+predictable substitutions; length and a breach check do more. The rules here
+follow the brief, with the predictability check added to cover the gap they
+leave — and the real enforcement still belongs in the API.
 
 **Requirements taught by the screen, not by a rule.** Pets are listed by city
 and the API refuses a search without one. Rather than explain that in a note
@@ -243,8 +262,27 @@ npm run lint    # ESLint with the React Compiler rules
 ## Deployment
 
 Built for Vercel. It's a SPA, so `vercel.json` rewrites all routes to
-`index.html` — without that, a direct visit to `/pets` 404s. Set `VITE_API_URL`
-in the project's environment variables.
+`index.html` — without that, a direct visit to `/pets` 404s.
+
+**`VITE_API_URL` is required in production.** Vite inlines it at build time, so
+it must exist in the Vercel project before the build, and a change only takes
+effect on a redeploy. Without it every request fails with a visible message —
+deliberately, rather than falling back to the fictional data, which would show
+invented pets and unreachable WhatsApp numbers to people actually looking to
+adopt. That fallback is now restricted to development builds.
+
+### Routes the API links to by name
+
+The backend composes these URLs from its own `FRONTEND_URL`, so they must match
+exactly — renaming them breaks emails that were already sent. They are the only
+English paths in an otherwise Portuguese app.
+
+| Email | Link | Screen |
+| --- | --- | --- |
+| Password reset | `${FRONTEND_URL}/reset-password?token=…` | new password, with the same policy as signup |
+| Email verification | `${FRONTEND_URL}/verify-email?token=…` | verifies on open, offers a resend if the link is spent |
+
+Set `FRONTEND_URL` on the API to the deployed origin, with no trailing slash.
 
 > **The API needs `@fastify/cors` registered** before a deployed frontend can
 > reach it, since the browser calls it cross-origin. Read requests are

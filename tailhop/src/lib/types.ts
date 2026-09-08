@@ -165,3 +165,11 @@ export interface UploadTicket {
   url: string
   uploadUrl: string
 }
+
+/* ── Conta: recuperação e verificação ─────────────────────────────────────── */
+
+/** Corpo de `POST /orgs/password/reset`. O token vem do link do e-mail. */
+export interface ResetPasswordPayload {
+  token: string
+  password: string
+}

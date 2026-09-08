@@ -1,19 +1,69 @@
-import { CheckCircle2, Info } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Info } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Card, OrgShell } from '@/components/OrgShell'
 import { buttonClass } from '@/components/button-styles'
-import { Button, Callout, Field, TextAreaField } from '@/components/ui'
+import { PasswordField } from '@/components/PasswordField'
+import { Button, Callout, Field } from '@/components/ui'
+import { ApiError, registerOrg, usingMockData } from '@/lib/api'
+import { scorePassword } from '@/lib/password'
 
+/**
+ * `address` é exigido pelo `POST /orgs` e faltava aqui — sem ele o cadastro
+ * responde 400. `about` saiu: a API não guarda esse campo, e pedir um texto
+ * que se perde no envio é desrespeito com quem preenche.
+ */
 const FIELDS = [
   { name: 'name', label: 'Nome da ONG', type: 'text', autoComplete: 'organization' },
   { name: 'city', label: 'Cidade', type: 'text', autoComplete: 'address-level2' },
-  { name: 'email', label: 'E-mail de contato', type: 'email', autoComplete: 'email' },
+  { name: 'address', label: 'Endereço', type: 'text', autoComplete: 'street-address' },
   { name: 'whatsapp', label: 'WhatsApp', type: 'tel', autoComplete: 'tel' },
 ] as const
 
 export function OrgSignup() {
   const [sent, setSent] = useState(false)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    // A senha é conferida no envio, não a cada tecla: corrigir alguém no meio
+    // da digitação atrapalha quem ainda está formando a senha.
+    if (!scorePassword(password, { email }).valid) {
+      setPasswordError('A senha ainda não atende aos requisitos acima.')
+      return
+    }
+
+    const form = new FormData(event.currentTarget)
+    setPasswordError(null)
+    setError(null)
+    setSubmitting(true)
+
+    try {
+      await registerOrg({
+        name: String(form.get('name') ?? '').trim(),
+        city: String(form.get('city') ?? '').trim(),
+        address: String(form.get('address') ?? '').trim(),
+        whatsapp: String(form.get('whatsapp') ?? '').trim(),
+        email: email.trim(),
+        password,
+      })
+      setSent(true)
+    } catch (cause) {
+      setError(
+        cause instanceof ApiError && cause.status === 409
+          ? 'Já existe uma conta com este e-mail ou WhatsApp.'
+          : cause instanceof Error
+            ? cause.message
+            : 'Não foi possível concluir o cadastro. Tente de novo.',
+      )
+      setSubmitting(false)
+    }
+  }
 
   return (
     <OrgShell
@@ -34,34 +84,31 @@ export function OrgSignup() {
             <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-brand-soft text-brand-deep">
               <CheckCircle2 className="size-7" aria-hidden />
             </span>
-            <h2 className="mt-5 text-2xl">Cadastro recebido</h2>
+            <h2 className="mt-5 text-2xl">Conta criada</h2>
             <p className="mx-auto mt-3 max-w-sm font-semibold text-ink-soft">
-              Este é um projeto de portfólio, então nada foi salvo de verdade. Em
-              produção, a ONG já entraria na plataforma e poderia publicar pets.
+              A ONG {' '}
+              <strong className="font-bold text-ink">{email.trim()}</strong> já está
+              cadastrada. Entre para publicar o primeiro pet.
             </p>
             <div className="mt-6">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setSent(false)
-                }}
-              >
-                Preencher de novo
-              </Button>
+              <Link to="/ong/entrar" className={buttonClass()}>
+                Entrar na área da ONG
+              </Link>
             </div>
           </div>
         ) : (
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              setSent(true)
-            }}
-            className="flex flex-col gap-5"
-          >
-            <Callout icon={<Info className="size-5" aria-hidden />}>
-              Projeto de portfólio: o formulário é apenas demonstrativo e nenhum
-              dado é enviado.
-            </Callout>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+            {usingMockData ? (
+              <Callout icon={<Info className="size-5" aria-hidden />}>
+                Modo demonstração: nenhum dado sai do navegador.
+              </Callout>
+            ) : null}
+
+            {error ? (
+              <Callout tone="error" icon={<AlertCircle className="size-5" aria-hidden />}>
+                {error}
+              </Callout>
+            ) : null}
 
             <div className="grid gap-5 sm:grid-cols-2">
               {FIELDS.map((field) => (
@@ -74,18 +121,30 @@ export function OrgSignup() {
                   autoComplete={field.autoComplete}
                 />
               ))}
+              <Field
+                label="E-mail de contato"
+                name="email"
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+              />
             </div>
 
-            <TextAreaField
-              label="Sobre a ONG"
-              name="about"
-              rows={4}
-              required
-              placeholder="Conte como a ONG trabalha, desde quando existe e como recebe os pets."
+            <PasswordField
+              label="Senha de acesso"
+              value={password}
+              onChange={(value) => {
+                setPassword(value)
+                setPasswordError(null)
+              }}
+              context={{ email }}
+              error={passwordError ?? undefined}
             />
 
-            <Button type="submit" size="lg" full>
-              Enviar cadastro
+            <Button type="submit" size="lg" full disabled={submitting}>
+              {submitting ? 'Criando conta…' : 'Criar conta'}
             </Button>
           </form>
         )}

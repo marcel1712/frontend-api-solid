@@ -82,6 +82,13 @@ export function OrgLogin() {
           <Button type="submit" size="lg" full disabled={submitting}>
             {submitting ? 'Entrando…' : 'Entrar'}
           </Button>
+
+          <Link
+            to="/esqueci-senha"
+            className="self-center rounded-pill text-sm font-bold text-brand hover:underline"
+          >
+            Esqueci minha senha
+          </Link>
         </form>
 
         <p className="mt-6 text-center text-sm font-bold text-ink-soft">
