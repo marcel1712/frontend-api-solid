@@ -9,6 +9,7 @@ import { NotFound } from '@/pages/NotFound'
 import { OrgDashboard } from '@/pages/OrgDashboard'
 import { OrgLogin } from '@/pages/OrgLogin'
 import { OrgSignup } from '@/pages/OrgSignup'
+import { PetDetails } from '@/pages/PetDetails'
 import { Pets } from '@/pages/Pets'
 import './index.css'
 
@@ -19,6 +20,7 @@ createRoot(document.getElementById('root')!).render(
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/pets" element={<Pets />} />
+          <Route path="/pets/:id" element={<PetDetails />} />
           <Route path="/ong" element={<OrgSignup />} />
           <Route path="/ong/entrar" element={<OrgLogin />} />
           <Route
