@@ -3,17 +3,21 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Card, OrgShell } from '@/components/OrgShell'
 import { buttonClass } from '@/components/button-styles'
+import { PasswordField } from '@/components/PasswordField'
 import { Button, Callout, Field, TextAreaField } from '@/components/ui'
+import { scorePassword } from '@/lib/password'
 
 const FIELDS = [
   { name: 'name', label: 'Nome da ONG', type: 'text', autoComplete: 'organization' },
   { name: 'city', label: 'Cidade', type: 'text', autoComplete: 'address-level2' },
-  { name: 'email', label: 'E-mail de contato', type: 'email', autoComplete: 'email' },
   { name: 'whatsapp', label: 'WhatsApp', type: 'tel', autoComplete: 'tel' },
 ] as const
 
 export function OrgSignup() {
   const [sent, setSent] = useState(false)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [passwordError, setPasswordError] = useState<string | null>(null)
 
   return (
     <OrgShell
@@ -52,8 +56,18 @@ export function OrgSignup() {
           </div>
         ) : (
           <form
+            noValidate={false}
             onSubmit={(event) => {
               event.preventDefault()
+
+              // A senha é conferida no envio, não a cada tecla: corrigir alguém
+              // no meio da digitação atrapalha quem ainda está formando a senha.
+              if (!scorePassword(password, { email }).valid) {
+                setPasswordError('A senha ainda não atende aos requisitos acima.')
+                return
+              }
+
+              setPasswordError(null)
               setSent(true)
             }}
             className="flex flex-col gap-5"
@@ -74,7 +88,27 @@ export function OrgSignup() {
                   autoComplete={field.autoComplete}
                 />
               ))}
+              <Field
+                label="E-mail de contato"
+                name="email"
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+              />
             </div>
+
+            <PasswordField
+              label="Senha de acesso"
+              value={password}
+              onChange={(value) => {
+                setPassword(value)
+                setPasswordError(null)
+              }}
+              context={{ email }}
+              error={passwordError ?? undefined}
+            />
 
             <TextAreaField
               label="Sobre a ONG"

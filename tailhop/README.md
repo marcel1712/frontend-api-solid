@@ -59,9 +59,9 @@ found a home:
 | --- |
 | ![Managing a pet's photos](docs/pet-photos.png) |
 
-| Shelter signup |
+| Shelter signup, with the password policy |
 | --- |
-| ![Shelter signup](docs/org-signup.png) |
+| ![Shelter signup](docs/password-rules.png) |
 
 <table>
 <tr>
@@ -131,6 +131,19 @@ both light and brand backgrounds, labelled form fields, results announced via
 identical "Adopt" buttons is useless to a screen reader.
 
 **Filters live in the URL.** A search survives a reload and can be shared.
+
+**A password policy that says what it is.** Client-side validation is
+guidance, not security — anyone can call `POST /orgs` directly, and the API
+itself only asks for 6 to 100 characters. So the field's job is to help someone
+choose well before they get it wrong: the rules appear only once typing starts,
+each one turns from pending to met as it is satisfied, and a reveal toggle
+makes a long password possible to type correctly. Composition rules alone would
+pass `Senha123!`, so the last rule rejects common words, three-character runs,
+and anything containing the shelter's own email. Worth saying plainly: NIST
+advises against mandating character classes, because they push people toward
+predictable substitutions; length and a breach check do more. The rules here
+follow the brief, with the predictability check added to cover the gap they
+leave — and the real enforcement still belongs in the API.
 
 **Requirements taught by the screen, not by a rule.** Pets are listed by city
 and the API refuses a search without one. Rather than explain that in a note

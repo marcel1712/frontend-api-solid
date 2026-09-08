@@ -1,6 +1,7 @@
 import type { ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
 import type { InputHTMLAttributes } from 'react'
 import { buttonClass, type ButtonStyle } from './button-styles'
+import { CONTROL } from './field-styles'
 
 interface ButtonProps
   extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'className'>,
@@ -11,9 +12,6 @@ export function Button({ variant, size, full, ...props }: ButtonProps) {
 }
 
 /* ── Campos de formulário ─────────────────────────────────────────────────── */
-
-const CONTROL =
-  'w-full rounded-2xl border border-hairline bg-canvas px-4 font-semibold outline-hidden focus:border-brand disabled:opacity-60'
 
 interface FieldShellProps {
   label: string
