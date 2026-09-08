@@ -91,7 +91,7 @@ async function request<T>(path: string, init?: RequestOptions): Promise<T> {
 function messageForStatus(status: number): string {
   if (status === 401) return 'Sua sessão expirou. Entre de novo para continuar.'
   if (status === 403) return 'Esta conta não tem permissão para essa ação.'
-  if (status === 409) return 'Este cadastro já atingiu o limite ou já existe.'
+  if (status === 409) return 'Limite atingido, ou o registro já existe.'
   if (status >= 500) {
     return 'O servidor não respondeu como esperado. Tente de novo em instantes.'
   }
@@ -295,19 +295,21 @@ export async function uploadPetPhoto(
 
   await putSignedFile(ticket.uploadUrl, file, onProgress)
 
-  // NOTA: o formato da resposta do confirm não pôde ser verificado no
-  // repositório (o commit ainda não estava publicado). Aceita tanto o registro
-  // direto quanto envelopado em `{ image }`, para não quebrar com o que vier.
-  const confirmed = await request<ApiPetImage | { image: ApiPetImage }>(
-    `/pets/${petId}/images/confirm`,
-    {
+  // Só aqui o registro nasce: o backend confere no R2 que o objeto existe
+  // mesmo antes de gravar. Um 404 nesta etapa quer dizer que o arquivo não
+  // chegou ao bucket, e não que o pet sumiu — daí a mensagem própria.
+  try {
+    return await request<ApiPetImage>(`/pets/${petId}/images/confirm`, {
       method: 'POST',
       authenticated: true,
       body: JSON.stringify({ key: ticket.key }),
-    },
-  )
-
-  return 'image' in confirmed ? confirmed.image : confirmed
+    })
+  } catch (cause) {
+    if (cause instanceof ApiError && cause.status === 404) {
+      throw new ApiError('A foto não chegou ao servidor de arquivos. Tente enviar de novo.', 404)
+    }
+    throw cause
+  }
 }
 
 /** `DELETE /pets/:id/images/:imageId` — remove a foto do pet e do R2. */

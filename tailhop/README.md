@@ -141,8 +141,10 @@ invitation to act, not a sign saying the form is incomplete.
 
 **A three-step upload, ordered so nothing is left behind.** Photos go to
 Cloudflare R2 without passing through the API: ask for a signed URL, `PUT` the
-file straight to the bucket, then confirm so the record is written only once
-the object exists. The client asks for the URL at send time, not when the file
+file straight to the bucket, then confirm — the API checks the object is really
+in the bucket before writing the row, so an interrupted upload leaves nothing
+behind. A `404` on that last step means the file never landed, not that the pet
+is gone, and the screen says so. The client asks for the URL at send time, not when the file
 is picked — it expires in five minutes, and someone who chooses a photo and
 then hesitates would lose the window. `XMLHttpRequest` instead of `fetch`,
 because only it reports upload progress, and a phone photo on a bad connection
