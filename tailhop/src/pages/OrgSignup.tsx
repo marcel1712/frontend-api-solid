@@ -7,6 +7,7 @@ import { PasswordField } from '@/components/PasswordField'
 import { Button, Callout, Field } from '@/components/ui'
 import { ApiError, registerOrg, usingMockData } from '@/lib/api'
 import { scorePassword } from '@/lib/password'
+import { toE164 } from '@/lib/phone'
 
 /**
  * `address` é exigido pelo `POST /orgs` e faltava aqui — sem ele o cadastro
@@ -26,6 +27,7 @@ export function OrgSignup() {
   const [password, setPassword] = useState('')
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [whatsappError, setWhatsappError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -39,7 +41,16 @@ export function OrgSignup() {
     }
 
     const form = new FormData(event.currentTarget)
+
+    // A API exige E.164; aqui aceitamos o número como se escreve no Brasil.
+    const whatsapp = toE164(String(form.get('whatsapp') ?? ''))
+    if (!whatsapp) {
+      setWhatsappError('Informe um número com DDD, como (11) 98765-4321.')
+      return
+    }
+
     setPasswordError(null)
+    setWhatsappError(null)
     setError(null)
     setSubmitting(true)
 
@@ -48,7 +59,7 @@ export function OrgSignup() {
         name: String(form.get('name') ?? '').trim(),
         city: String(form.get('city') ?? '').trim(),
         address: String(form.get('address') ?? '').trim(),
-        whatsapp: String(form.get('whatsapp') ?? '').trim(),
+        whatsapp,
         email: email.trim(),
         password,
       })
@@ -124,6 +135,11 @@ export function OrgSignup() {
                   type={field.type}
                   required
                   autoComplete={field.autoComplete}
+                  hint={field.name === 'whatsapp' ? 'Com DDD. Ex.: (11) 98765-4321' : undefined}
+                  error={field.name === 'whatsapp' ? (whatsappError ?? undefined) : undefined}
+                  onChange={
+                    field.name === 'whatsapp' ? () => setWhatsappError(null) : undefined
+                  }
                 />
               ))}
               <Field

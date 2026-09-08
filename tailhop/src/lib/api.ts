@@ -43,11 +43,14 @@ export const usingMockData = BASE_URL === '' && import.meta.env.DEV
 /** Erro de rede/HTTP com uma mensagem que pode ser mostrada na tela. */
 export class ApiError extends Error {
   status?: number
+  /** Campos recusados pelo Zod, quando a API manda o detalhe. */
+  fields?: string[]
 
-  constructor(message: string, status?: number) {
+  constructor(message: string, status?: number, fields?: string[]) {
     super(message)
     this.name = 'ApiError'
     this.status = status
+    this.fields = fields
   }
 
   /** Sessão ausente ou expirada: quem chamou deve mandar a ONG para o login. */
@@ -97,13 +100,51 @@ async function request<T>(path: string, init?: RequestOptions): Promise<T> {
   }
 
   if (!response.ok) {
-    throw new ApiError(messageForStatus(response.status), response.status)
+    // Um 400 do Zod vem com `issues` dizendo qual campo falhou. Sem ler isso, a
+    // tela mostrava "não foi possível concluir" e a pessoa ficava sem saber o
+    // que corrigir — foi assim que um WhatsApp fora do formato E.164 virou um
+    // erro mudo.
+    const fields = await failedFields(response)
+    throw new ApiError(messageForStatus(response.status, fields), response.status, fields)
   }
 
   return (await response.json()) as T
 }
 
-function messageForStatus(status: number): string {
+/** Nomes como a pessoa os vê na tela, não como a API os chama. */
+const FIELD_LABEL: Record<string, string> = {
+  name: 'nome da ONG',
+  city: 'cidade',
+  address: 'endereço',
+  whatsapp: 'WhatsApp',
+  email: 'e-mail',
+  password: 'senha',
+  age: 'idade',
+  size: 'porte',
+  type: 'espécie',
+  bio: 'descrição',
+}
+
+interface ZodIssue {
+  path?: (string | number)[]
+}
+
+async function failedFields(response: Response): Promise<string[] | undefined> {
+  try {
+    const body = (await response.clone().json()) as { issues?: ZodIssue[] }
+    if (!body.issues?.length) return undefined
+
+    const names = body.issues
+      .map((issue) => issue.path?.[0])
+      .filter((name): name is string => typeof name === 'string')
+
+    return names.length ? [...new Set(names)] : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function messageForStatus(status: number, fields?: string[]): string {
   if (status === 401) return 'Sua sessão expirou. Entre de novo para continuar.'
   if (status === 403) return 'Esta conta não tem permissão para essa ação.'
   if (status === 409) return 'Limite atingido, ou o registro já existe.'
@@ -114,6 +155,12 @@ function messageForStatus(status: number): string {
   }
   if (status >= 500) {
     return 'O servidor não respondeu como esperado. Tente de novo em instantes.'
+  }
+  if (status === 400 && fields?.length) {
+    const labels = fields.map((field) => FIELD_LABEL[field] ?? field)
+    return labels.length === 1
+      ? `O campo ${labels[0]} está em um formato que o servidor não aceita.`
+      : `Estes campos estão em um formato que o servidor não aceita: ${labels.join(', ')}.`
   }
   return 'Não foi possível concluir a solicitação.'
 }
