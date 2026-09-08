@@ -5,7 +5,7 @@ import { Card, OrgShell } from '@/components/OrgShell'
 import { PetCardSkeleton } from '@/components/PetCard'
 import { buttonClass } from '@/components/button-styles'
 import { Button, Callout } from '@/components/ui'
-import { ApiError, fetchOrgPets, markPetAsAdopted } from '@/lib/api'
+import { ApiError, fetchOrgPets, setPetAdopted } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { formatAge, formatSize, formatType } from '@/lib/format'
 import type { ApiOrg, Pet } from '@/lib/types'
@@ -13,7 +13,7 @@ import { useRequest } from '@/lib/useRequest'
 
 interface PetRowProps {
   pet: Pet
-  onAdopted: (pet: Pet) => void
+  onChanged: (pet: Pet, adopted: boolean) => void
   onUnauthorized: () => void
 }
 
@@ -21,23 +21,22 @@ interface PetRowProps {
  * Uma linha por pet: no painel a ONG confere e dá baixa no que publicou, não
  * navega pela vitrine.
  *
- * Dar baixa é irreversível pela interface — a busca não devolve pets adotados,
- * então o pet sai do painel e não sobra de onde desmarcá-lo. Daí a confirmação
- * em dois passos, na própria linha: um diálogo para uma ação de uma linha só
- * seria cerimônia demais, e o segundo passo já diz o que vai acontecer.
+ * Dar baixa continua pedindo confirmação, porque tira o pet da busca na hora,
+ * mas agora é reversível: `GET /orgs/me/pets` devolve os adotados, então existe
+ * uma tela de onde reabrir. Reabrir não confirma — é a ação que desfaz.
  */
-function PetRow({ pet, onAdopted, onUnauthorized }: PetRowProps) {
+function PetRow({ pet, onChanged, onUnauthorized }: PetRowProps) {
   const [confirming, setConfirming] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function confirm() {
+  async function apply(adopted: boolean) {
     setSaving(true)
     setError(null)
 
     try {
-      await markPetAsAdopted(pet.id)
-      onAdopted(pet)
+      await setPetAdopted(pet.id, adopted)
+      onChanged(pet, adopted)
     } catch (cause) {
       if (cause instanceof ApiError && cause.isUnauthorized) {
         onUnauthorized()
@@ -46,7 +45,7 @@ function PetRow({ pet, onAdopted, onUnauthorized }: PetRowProps) {
       setError(
         cause instanceof Error
           ? cause.message
-          : 'Não foi possível dar baixa neste anúncio.',
+          : 'Não foi possível atualizar este anúncio.',
       )
       setSaving(false)
       setConfirming(false)
@@ -71,7 +70,17 @@ function PetRow({ pet, onAdopted, onUnauthorized }: PetRowProps) {
           {pet.city}
         </span>
 
-        {!confirming ? (
+        {pet.adopted ? (
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => void apply(false)}
+            aria-label={`Reabrir o anúncio de ${pet.name}`}
+            className="ml-auto rounded-pill px-4 py-2 text-sm font-bold text-brand transition-colors hover:bg-brand-soft disabled:opacity-60"
+          >
+            {saving ? 'Reabrindo…' : 'Reabrir anúncio'}
+          </button>
+        ) : !confirming ? (
           <button
             type="button"
             onClick={() => {
@@ -88,10 +97,11 @@ function PetRow({ pet, onAdopted, onUnauthorized }: PetRowProps) {
       {confirming ? (
         <div className="mt-3 rounded-2xl bg-shell p-4 sm:flex sm:items-center sm:gap-4">
           <p className="text-sm font-semibold text-ink-soft sm:flex-1">
-            {pet.name} sai da busca, e o anúncio não pode ser reaberto por aqui.
+            {pet.name} sai da busca na hora. Você pode reabrir o anúncio depois,
+            aqui mesmo.
           </p>
           <div className="mt-3 flex items-center gap-2 sm:mt-0 sm:shrink-0">
-            <Button size="sm" onClick={confirm} disabled={saving}>
+            <Button size="sm" onClick={() => void apply(true)} disabled={saving}>
               {saving ? (
                 'Dando baixa…'
               ) : (
@@ -130,18 +140,22 @@ function PublishedPets({ org }: { org: ApiOrg }) {
     useCallback(() => fetchOrgPets(org), [org]),
   )
 
-  // O pet sai da lista assim que a API confirma, sem refazer a busca inteira:
-  // ele já não voltaria nela de qualquer jeito.
-  const [adoptedIds, setAdoptedIds] = useState<string[]>([])
+  // O pet muda de seção assim que a API confirma, sem refazer a lista inteira.
+  // Estas sobreposições valem só até a próxima carga, que já vem correta.
+  const [changed, setChanged] = useState<Record<string, boolean>>({})
   const [notice, setNotice] = useState<string | null>(null)
 
   const onUnauthorized = useCallback(() => {
     navigate('/ong/entrar', { replace: true })
   }, [navigate])
 
-  const onAdopted = useCallback((pet: Pet) => {
-    setAdoptedIds((ids) => [...ids, pet.id])
-    setNotice(`${pet.name} foi marcado como adotado e saiu da busca.`)
+  const onChanged = useCallback((pet: Pet, adopted: boolean) => {
+    setChanged((current) => ({ ...current, [pet.id]: adopted }))
+    setNotice(
+      adopted
+        ? `${pet.name} foi marcado como adotado e saiu da busca.`
+        : `${pet.name} voltou para a busca.`,
+    )
   }, [])
 
   if (loading) {
@@ -168,7 +182,25 @@ function PublishedPets({ org }: { org: ApiOrg }) {
     )
   }
 
-  const pets = data?.filter((pet) => !adoptedIds.includes(pet.id)) ?? []
+  const pets = (data ?? []).map((pet) => ({
+    ...pet,
+    adopted: changed[pet.id] ?? pet.adopted,
+  }))
+  const listed = pets.filter((pet) => !pet.adopted)
+  const adopted = pets.filter((pet) => pet.adopted)
+
+  const rows = (items: Pet[]) => (
+    <ul className="mt-5">
+      {items.map((pet) => (
+        <PetRow
+          key={pet.id}
+          pet={pet}
+          onChanged={onChanged}
+          onUnauthorized={onUnauthorized}
+        />
+      ))}
+    </ul>
+  )
 
   return (
     <>
@@ -180,38 +212,25 @@ function PublishedPets({ org }: { org: ApiOrg }) {
         <Callout icon={<Check className="size-5" aria-hidden />}>{notice}</Callout>
       ) : null}
 
-      {pets.length ? (
+      {listed.length ? (
         <Card>
           <div className="flex flex-wrap items-baseline justify-between gap-3">
-            <h2 className="text-2xl">Pets publicados</h2>
+            <h2 className="text-2xl">Aguardando adoção</h2>
             <p className="text-sm font-bold text-ink-soft">
-              {pets.length} {pets.length === 1 ? 'anunciado' : 'anunciados'}
+              {listed.length} na busca
             </p>
           </div>
-          <ul className="mt-5">
-            {pets.map((pet) => (
-              <PetRow
-                key={pet.id}
-                pet={pet}
-                onAdopted={onAdopted}
-                onUnauthorized={onUnauthorized}
-              />
-            ))}
-          </ul>
-          <p className="mt-5 text-sm font-semibold text-ink-soft">
-            Pets marcados como adotados saem desta lista, porque deixam de
-            aparecer na busca.
-          </p>
+          {rows(listed)}
         </Card>
       ) : (
         <Card>
           <h2 className="text-2xl">
-            {adoptedIds.length
+            {adopted.length
               ? 'Nenhum pet aguardando adoção'
               : 'Nenhum pet publicado ainda'}
           </h2>
           <p className="mt-3 max-w-md font-semibold text-ink-soft">
-            {adoptedIds.length
+            {adopted.length
               ? 'Todos os seus anúncios foram adotados. Publique outro quando houver um novo resgate.'
               : `Assim que você cadastrar o primeiro, ele aparece na busca de quem procura adotar em ${org.city}.`}
           </p>
@@ -221,6 +240,22 @@ function PublishedPets({ org }: { org: ApiOrg }) {
           </Link>
         </Card>
       )}
+
+      {adopted.length ? (
+        <Card>
+          <div className="flex flex-wrap items-baseline justify-between gap-3">
+            <h2 className="text-2xl">Já adotados</h2>
+            <p className="text-sm font-bold text-ink-soft">
+              {adopted.length} fora da busca
+            </p>
+          </div>
+          {rows(adopted)}
+          <p className="mt-5 text-sm font-semibold text-ink-soft">
+            Estes anúncios não aparecem para quem procura adotar. Reabra se o pet
+            voltar a precisar de um lar.
+          </p>
+        </Card>
+      ) : null}
     </>
   )
 }

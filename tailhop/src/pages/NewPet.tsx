@@ -29,9 +29,10 @@ const TYPES: AnimalType[] = [
 ]
 
 /**
- * O backend ainda não guarda imagem. O campo fica visível e desabilitado, com o
- * motivo escrito: some a dúvida de "cadê a foto?" e o lugar dela no formulário
- * já está definido para quando o upload existir.
+ * O backend já guarda imagens (`POST /pets/:id/images` devolve uma URL
+ * assinada do R2), mas o envio só pode acontecer depois que o pet existe e tem
+ * id. Por isso o campo fica aqui explicando o fluxo, em vez de fingir que a
+ * foto entra junto com o cadastro.
  */
 function PhotoField() {
   return (
@@ -42,8 +43,8 @@ function PhotoField() {
           <ImagePlus className="size-6" aria-hidden />
         </span>
         <p className="text-sm font-semibold text-ink-soft">
-          O envio de fotos ainda está sendo construído. Por enquanto o anúncio
-          entra com a ilustração padrão do Tailhop.
+          As fotos são adicionadas depois de publicar, na página do pet. Até lá
+          o anúncio aparece com a ilustração padrão do Tailhop.
         </p>
       </div>
     </div>
