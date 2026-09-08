@@ -2,7 +2,7 @@ import { AlertCircle, Check, MapPin, Plus } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Card, OrgShell } from '@/components/OrgShell'
-import { PetCardSkeleton } from '@/components/PetCard'
+import { PetCardSkeleton, PetPhoto } from '@/components/PetCard'
 import { buttonClass } from '@/components/button-styles'
 import { Button, Callout } from '@/components/ui'
 import { ApiError, fetchOrgPets, setPetAdopted } from '@/lib/api'
@@ -57,8 +57,11 @@ function PetRow({ pet, onChanged, onUnauthorized }: PetRowProps) {
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <Link
           to={`/ong/painel/pets/${pet.id}`}
-          className="rounded-sm font-display text-lg hover:text-brand"
+          className="flex items-center gap-3 rounded-sm font-display text-lg hover:text-brand"
         >
+          <span className="size-11 shrink-0 overflow-hidden rounded-xl bg-shell">
+            <PetPhoto pet={pet} className="size-11" iconClassName="size-5" />
+          </span>
           {pet.name}
         </Link>
         <span className="rounded-pill bg-brand-soft px-3 py-1 text-xs font-bold text-brand-deep">
