@@ -6,6 +6,7 @@ import { CitySearch } from '@/components/CitySearch'
 import { Logo } from '@/components/Logo'
 import { PetCard, PetCardSkeleton } from '@/components/PetCard'
 import { Footer, Header } from '@/components/SiteChrome'
+import { buttonClass } from '@/components/button-styles'
 import { fetchFeaturedPets } from '@/lib/api'
 import { useRequest } from '@/lib/useRequest'
 
@@ -38,7 +39,7 @@ function Featured() {
         <button
           type="button"
           onClick={reload}
-          className="mt-4 rounded-pill bg-brand px-6 py-3 font-display font-semibold text-white transition-colors hover:bg-brand-deep"
+          className={`${buttonClass()} mt-4`}
         >
           Tentar de novo
         </button>
@@ -85,13 +86,13 @@ export function Home() {
                 <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:gap-4">
                   <Link
                     to="/pets"
-                    className="inline-flex items-center justify-center rounded-pill bg-teal px-8 py-4 font-display text-lg font-semibold text-ink shadow-lift transition-colors hover:bg-teal-deep"
+                    className={buttonClass({ variant: 'accent', size: 'lg' })}
                   >
                     Adotar
                   </Link>
                   <Link
                     to="/ong"
-                    className="inline-flex items-center justify-center rounded-pill border-2 border-white/70 px-8 py-4 font-display text-lg font-semibold text-white transition-colors hover:bg-white/15"
+                    className={buttonClass({ variant: 'on-brand', size: 'lg' })}
                   >
                     Cadastrar ONG
                   </Link>
@@ -148,7 +149,7 @@ export function Home() {
               </div>
               <Link
                 to="/pets"
-                className="shrink-0 justify-self-start rounded-pill border-2 border-brand px-6 py-3 font-display font-semibold text-brand transition-colors hover:bg-brand-soft"
+                className={`${buttonClass({ variant: 'outline' })} shrink-0 justify-self-start`}
               >
                 Ver todos
               </Link>
@@ -167,7 +168,7 @@ export function Home() {
             </p>
             <Link
               to="/ong"
-              className="mt-9 inline-flex rounded-pill bg-brand px-8 py-4 font-display text-lg font-semibold text-white transition-colors hover:bg-brand-deep"
+              className={`${buttonClass({ size: 'lg' })} mt-9`}
             >
               Cadastre sua ONG
             </Link>

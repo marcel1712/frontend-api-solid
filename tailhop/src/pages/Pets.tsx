@@ -3,6 +3,7 @@ import { useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { PetCard, PetCardSkeleton } from '@/components/PetCard'
 import { Footer, Header } from '@/components/SiteChrome'
+import { buttonClass } from '@/components/button-styles'
 import { searchPets } from '@/lib/api'
 import type { AgeGroup, AnimalSize, AnimalType } from '@/lib/types'
 import { useRequest } from '@/lib/useRequest'
@@ -166,7 +167,7 @@ export function Pets() {
               <button
                 type="button"
                 onClick={reload}
-                className="mt-6 rounded-pill bg-brand px-6 py-3 font-display font-semibold text-white transition-colors hover:bg-brand-deep"
+                className={`${buttonClass()} mt-6`}
               >
                 Buscar de novo
               </button>
@@ -196,7 +197,7 @@ export function Pets() {
                   onClick={() => {
                     setParams(new URLSearchParams({ cidade: city }), { replace: true })
                   }}
-                  className="mt-6 rounded-pill bg-brand px-6 py-3 font-display font-semibold text-white transition-colors hover:bg-brand-deep"
+                  className={`${buttonClass()} mt-6`}
                 >
                   Limpar filtros
                 </button>

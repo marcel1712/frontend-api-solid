@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Footer, Header } from '@/components/SiteChrome'
+import { buttonClass } from '@/components/button-styles'
 
 export function NotFound() {
   return (
@@ -13,7 +14,7 @@ export function NotFound() {
         </p>
         <Link
           to="/pets"
-          className="mt-8 rounded-pill bg-brand px-8 py-4 font-display text-lg font-semibold text-white transition-colors hover:bg-brand-deep"
+          className={`${buttonClass({ size: 'lg' })} mt-8`}
         >
           Ver pets para adoção
         </Link>

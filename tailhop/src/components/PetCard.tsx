@@ -1,6 +1,7 @@
 import { MapPin, PawPrint } from 'lucide-react'
 import { formatAge, formatSize, formatType, whatsappLink } from '@/lib/format'
 import type { Pet } from '@/lib/types'
+import { buttonClass } from './button-styles'
 
 /**
  * Enquanto o backend de imagens não existe, o lugar da foto recebe um ladrilho
@@ -80,7 +81,7 @@ export function PetCard({ pet }: { pet: Pet }) {
             target="_blank"
             rel="noreferrer"
             aria-label={`Adotar ${pet.name}: falar com a ONG no WhatsApp`}
-            className="mt-auto inline-flex items-center justify-center rounded-pill bg-brand px-5 py-3 font-display text-base font-semibold text-white transition-colors hover:bg-brand-deep"
+            className={`${buttonClass()} mt-auto`}
           >
             Adotar
           </a>
