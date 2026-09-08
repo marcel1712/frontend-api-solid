@@ -63,7 +63,7 @@ export function NewPet() {
 
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [created, setCreated] = useState<string | null>(null)
+  const [created, setCreated] = useState<{ id: string; name: string } | null>(null)
 
   if (!org) return null
 
@@ -80,7 +80,7 @@ export function NewPet() {
         type,
         bio: bio.trim() || undefined,
       })
-      setCreated(pet.name)
+      setCreated({ id: pet.id, name: pet.name })
     } catch (cause) {
       if (cause instanceof ApiError && cause.isUnauthorized) {
         navigate('/ong/entrar', { replace: true })
@@ -97,20 +97,21 @@ export function NewPet() {
 
   if (created) {
     return (
-      <OrgShell title="Pet publicado" subtitle={`${created} já está na busca.`}>
+      <OrgShell title="Pet publicado" subtitle={`${created.name} já está na busca.`}>
         <Card>
           <div className="py-6 text-center">
             <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-brand-soft text-brand-deep">
               <CheckCircle2 className="size-7" aria-hidden />
             </span>
-            <h2 className="mt-5 text-2xl">{created} está anunciado</h2>
+            <h2 className="mt-5 text-2xl">{created.name} está anunciado</h2>
             <p className="mx-auto mt-3 max-w-sm font-semibold text-ink-soft">
-              Quem buscar por pets em {org.city} já encontra o anúncio, e o
-              contato chega no WhatsApp da ONG.
+              Quem buscar por pets em {org.city} já encontra o anúncio. Agora que
+              o pet tem uma página, dá para adicionar as fotos.
             </p>
             <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
-              <Link to="/ong/painel" className={buttonClass()}>
-                Ver meus pets
+              <Link to={`/ong/painel/pets/${created.id}`} className={buttonClass()}>
+                <ImagePlus className="size-5" aria-hidden />
+                Adicionar fotos
               </Link>
               <Button
                 variant="outline"

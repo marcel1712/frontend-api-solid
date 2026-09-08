@@ -55,7 +55,12 @@ function PetRow({ pet, onChanged, onUnauthorized }: PetRowProps) {
   return (
     <li className="border-t border-hairline py-4 first:border-t-0 first:pt-0">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span className="font-display text-lg">{pet.name}</span>
+        <Link
+          to={`/ong/painel/pets/${pet.id}`}
+          className="rounded-sm font-display text-lg hover:text-brand"
+        >
+          {pet.name}
+        </Link>
         <span className="rounded-pill bg-brand-soft px-3 py-1 text-xs font-bold text-brand-deep">
           {formatType(pet.type)}
         </span>

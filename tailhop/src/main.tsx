@@ -4,6 +4,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { RequireAuth } from '@/components/RequireAuth'
 import { AuthProvider } from '@/lib/auth'
 import { Home } from '@/pages/Home'
+import { ManagePet } from '@/pages/ManagePet'
 import { NewPet } from '@/pages/NewPet'
 import { NotFound } from '@/pages/NotFound'
 import { OrgDashboard } from '@/pages/OrgDashboard'
@@ -28,6 +29,14 @@ createRoot(document.getElementById('root')!).render(
             element={
               <RequireAuth>
                 <OrgDashboard />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/ong/painel/pets/:id"
+            element={
+              <RequireAuth>
+                <ManagePet />
               </RequireAuth>
             }
           />
