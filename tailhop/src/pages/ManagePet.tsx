@@ -1,4 +1,4 @@
-import { ArrowLeft, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Check, ExternalLink } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Card, OrgShell } from '@/components/OrgShell'
@@ -94,13 +94,20 @@ export function ManagePet() {
               onUnauthorized={onUnauthorized}
             />
 
-            <div className="mt-8 border-t border-hairline pt-6">
+            <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-hairline pt-6">
               <Link
                 to={`/pets/${pet.id}`}
                 className="inline-flex items-center gap-2 rounded-pill text-sm font-bold text-brand hover:underline"
               >
                 <ExternalLink className="size-4" aria-hidden />
                 Ver o anúncio como quem procura adotar
+              </Link>
+
+              {/* Cada foto já foi salva ao ser enviada, então isto não é
+                  "salvar" — é a saída explícita de quem terminou. */}
+              <Link to="/ong/painel" className={buttonClass()}>
+                <Check className="size-5" aria-hidden />
+                Concluir
               </Link>
             </div>
           </>

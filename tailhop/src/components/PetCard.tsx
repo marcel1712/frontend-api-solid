@@ -19,9 +19,13 @@ const TILES = [
 export function PetPhoto({
   pet,
   className = 'aspect-4/3',
+  /** A pata do ladrilho acompanha o tamanho de quem chama; a miniatura do
+      painel é pequena demais para o tamanho do card. */
+  iconClassName = 'size-14',
 }: {
   pet: Pet
   className?: string
+  iconClassName?: string
 }) {
   const [photo] = pet.photos
 
@@ -44,7 +48,7 @@ export function PetPhoto({
       role="img"
       aria-label={`${pet.name} ainda não tem foto publicada`}
     >
-      <PawPrint className="size-14 text-ink/25" strokeWidth={2.25} aria-hidden />
+      <PawPrint className={`${iconClassName} text-ink/25`} strokeWidth={2.25} aria-hidden />
     </div>
   )
 }
