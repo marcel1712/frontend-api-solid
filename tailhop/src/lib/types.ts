@@ -29,13 +29,28 @@ export interface ApiPet {
   created_at: string
 }
 
+/** Model `PetImage`: um arquivo no R2, já com a URL pública montada. */
+export interface ApiPetImage {
+  id: string
+  petId: string
+  key: string
+  url: string
+  created_at: string
+}
+
 /**
- * O pet com o whatsapp da org dona junto. É o que `GET /pets/:id` e
- * `GET /pets/search` devolvem — a busca resolve o whatsapp no próprio use
- * case, sem query extra. Vem `''` quando a org não tem número.
+ * O pet com o whatsapp da org dona e as fotos junto. É o que `GET /pets/:id` e
+ * `GET /pets/search` devolvem — ambos resolvem tudo no próprio use case, sem
+ * query extra. O whatsapp vem `''` quando a org não tem número.
  */
 export interface ApiPetWithWhatsapp extends ApiPet {
   whatsapp: string
+  images: ApiPetImage[]
+}
+
+/** `GET /orgs/me/pets`: os pets da própria ONG, com fotos e incluindo adotados. */
+export interface ApiOwnPet extends ApiPet {
+  images: ApiPetImage[]
 }
 
 /** Model `Org` sem o `password_hash`, que a API nunca devolve. */
@@ -60,10 +75,10 @@ export interface Pet extends ApiPet {
   city: string
   whatsapp: string | null
   /**
-   * O schema do backend ainda não tem campo de imagem. Fica `null` até o
-   * upload existir; o card cai para um ladrilho da marca nesse caso.
+   * Fotos publicadas, na ordem em que vieram. Guarda o registro inteiro, e não
+   * só a URL, porque remover uma foto precisa do id. Vazio é estado normal.
    */
-  photoUrl: string | null
+  photos: ApiPetImage[]
 }
 
 /* ── Filtros ──────────────────────────────────────────────────────────────── */
@@ -94,4 +109,59 @@ export interface OrgSignupPayload {
   whatsapp: string
   city: string
   address: string
+}
+
+/* ── Área da ONG ──────────────────────────────────────────────────────────── */
+
+/** Corpo de `POST /orgs/sessions`. */
+export interface CredentialsPayload {
+  email: string
+  password: string
+}
+
+/**
+ * `POST /pets`. A org vem do JWT, nunca do corpo — o backend ignora qualquer
+ * `orgId` enviado aqui, e é isso que impede uma ONG de publicar em nome de outra.
+ */
+export interface CreatePetPayload {
+  name: string
+  age: number
+  size: AnimalSize
+  type: AnimalType
+  bio?: string
+}
+
+/**
+ * Sessão guardada no navegador. O backend devolve só o token; o id da org sai
+ * do claim `sub` e o perfil vem de `GET /orgs/:id`.
+ */
+export interface Session {
+  token: string
+  org: ApiOrg
+}
+
+/** O que a página de detalhes precisa: o pet e a ONG que o publicou. */
+export interface PetPage {
+  pet: Pet
+  /** `null` quando o perfil da ONG não pôde ser carregado. */
+  org: ApiOrg | null
+}
+
+/* ── Upload de fotos ──────────────────────────────────────────────────────── */
+
+/** Tipos que a API assina. O `PUT` precisa mandar exatamente o mesmo. */
+export const UPLOADABLE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
+export type UploadableType = (typeof UPLOADABLE_TYPES)[number]
+
+/** Limite por pet imposto pelo backend; passar disso responde 409. */
+export const MAX_PHOTOS_PER_PET = 3
+
+/**
+ * Resposta de `POST /pets/:id/images`. Nada foi gravado ainda: `key` identifica
+ * o objeto para a confirmação, e `url` é onde ele vai ficar público.
+ */
+export interface UploadTicket {
+  key: string
+  url: string
+  uploadUrl: string
 }

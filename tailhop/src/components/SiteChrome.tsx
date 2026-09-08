@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '@/lib/auth-context'
 import { CitySearch } from './CitySearch'
 import { Logo } from './Logo'
 
@@ -31,6 +32,7 @@ export function Header({
   initialCity,
 }: HeaderProps) {
   const [visible, setVisible] = useState(!revealOnScroll)
+  const { org } = useAuth()
 
   useEffect(() => {
     if (!revealOnScroll) return
@@ -68,10 +70,10 @@ export function Header({
         )}
 
         <Link
-          to="/ong"
+          to={org ? '/ong/painel' : '/ong/entrar'}
           className="shrink-0 rounded-pill px-4 py-2 text-sm font-bold text-brand transition-colors hover:bg-brand-soft"
         >
-          Área da ONG
+          {org ? 'Meu painel' : 'Área da ONG'}
         </Link>
       </div>
 
