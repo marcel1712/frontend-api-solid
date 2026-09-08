@@ -4,8 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Card, OrgShell } from '@/components/OrgShell'
 import { buttonClass } from '@/components/button-styles'
 import { Button, Callout, Field, SelectField, TextAreaField } from '@/components/ui'
-import { VerifyNotice } from '@/components/VerifyNotice'
-import { ApiError, createPet, isOrgVerified } from '@/lib/api'
+import { ApiError, createPet } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { formatSize, formatType } from '@/lib/format'
 import type { AnimalSize, AnimalType } from '@/lib/types'
@@ -68,29 +67,6 @@ export function NewPet() {
 
   if (!org) return null
 
-  // A API recusaria o POST de qualquer forma; barrar aqui evita alguém
-  // preencher o formulário inteiro para levar um erro no envio.
-  if (!isOrgVerified(org)) {
-    return (
-      <OrgShell
-        title="Confirme seu e-mail"
-        subtitle="É o que falta para publicar o primeiro pet."
-        actions={
-          <Link
-            to="/ong/painel"
-            className={buttonClass({ variant: 'on-brand', size: 'sm' })}
-          >
-            <ArrowLeft className="size-4" aria-hidden />
-            Painel
-          </Link>
-        }
-      >
-        <Card>
-          <VerifyNotice email={org.email} tone="blocking" />
-        </Card>
-      </OrgShell>
-    )
-  }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()

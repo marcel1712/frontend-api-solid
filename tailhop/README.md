@@ -291,20 +291,17 @@ Set `FRONTEND_URL` on the API to the deployed origin, with no trailing slash.
 
 What is not built yet, and why:
 
-- **Email verification.** The screens exist and wait on the API. Everything the
-  frontend expects sits in one place in `lib/api.ts`:
-  `POST /orgs/email/verify` with `{ token }`, answering 400 for a spent link;
-  `POST /orgs/email/resend` with `{ email }`, answering 200 either way, the way
-  `password/forgot` already does; a link of
-  `${FRONTEND_URL}/verify-email?token=...`; and `email_verified_at` on the org,
-  null until confirmed. An unverified shelter signs in and sees its dashboard,
-  with publishing replaced by the prompt to confirm. A missing field reads as
-  verified on purpose — treating absence as unverified would lock out every
-  shelter that already exists, today, over a feature that has not shipped.
+- **A resend endpoint, and this one is urgent.** Verification links last 24
+  hours, login refuses an unverified account, and there is no way to ask for
+  another link. Miss the window and the account is unreachable: it cannot log
+  in, cannot verify, and cannot be registered again because the email is taken.
+  Every screen that would offer a resend is written and waiting for the route.
 - **Treating an already-verified account as success.** Corporate mail scanners
-  open links to inspect them, which can spend a one-time token before the
-  person clicks. Answering 200 when an already-verified account is verified
-  again removes that whole class of false failure.
+  open links to inspect them, and `GET /orgs/verify-email` is a plain link that
+  a scanner will follow — spending the one-time token before the person clicks,
+  and locking them out for good while there is no resend. Answering 200 when an
+  already-verified account is verified again removes that whole class of false
+  failure.
 - **Mirroring the password policy in the API.** `POST /orgs/password/reset`
   accepts any six-character password, so the rules are a suggestion to anyone
   not using the form.

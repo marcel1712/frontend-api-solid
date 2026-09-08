@@ -84,15 +84,20 @@ export function OrgSignup() {
             <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-brand-soft text-brand-deep">
               <CheckCircle2 className="size-7" aria-hidden />
             </span>
-            <h2 className="mt-5 text-2xl">Conta criada</h2>
+            <h2 className="mt-5 text-2xl">Confirme seu e-mail</h2>
+            {/* O login recusa conta não verificada, então mandar direto para
+                lá seria empurrar a pessoa para uma porta fechada. */}
             <p className="mx-auto mt-3 max-w-sm font-semibold text-ink-soft">
-              A ONG {' '}
-              <strong className="font-bold text-ink">{email.trim()}</strong> já está
-              cadastrada. Entre para publicar o primeiro pet.
+              A conta foi criada. Enviamos um link de confirmação para{' '}
+              <strong className="font-bold text-ink">{email.trim()}</strong> — abra
+              ele para liberar o acesso.
+            </p>
+            <p className="mx-auto mt-3 max-w-sm text-sm font-semibold text-ink-soft">
+              O link vale 24 horas. Se não chegar, confira a caixa de spam.
             </p>
             <div className="mt-6">
-              <Link to="/ong/entrar" className={buttonClass()}>
-                Entrar na área da ONG
+              <Link to="/ong/entrar" className={buttonClass({ variant: 'outline' })}>
+                Já confirmei, quero entrar
               </Link>
             </div>
           </div>

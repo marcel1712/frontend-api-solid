@@ -5,8 +5,7 @@ import { Card, OrgShell } from '@/components/OrgShell'
 import { PetCardSkeleton, PetPhoto } from '@/components/PetCard'
 import { buttonClass } from '@/components/button-styles'
 import { Button, Callout } from '@/components/ui'
-import { VerifyNotice } from '@/components/VerifyNotice'
-import { ApiError, fetchOrgPets, isOrgVerified, setPetAdopted } from '@/lib/api'
+import { ApiError, fetchOrgPets, setPetAdopted } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { formatAge, formatSize, formatType } from '@/lib/format'
 import type { ApiOrg, Pet } from '@/lib/types'
@@ -273,8 +272,6 @@ export function OrgDashboard() {
   const { org, signOut } = useAuth()
   if (!org) return null
 
-  const verified = isOrgVerified(org)
-
   return (
     <OrgShell
       title={org.name}
@@ -286,27 +283,21 @@ export function OrgDashboard() {
       }
     >
       <div className="flex flex-col gap-6">
-        {verified ? (
-          <Card>
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="max-w-sm">
-                <h2 className="text-2xl">Publicar um pet</h2>
-                <p className="mt-2 font-semibold text-ink-soft">
-                  Quanto mais detalhes, mais fácil para alguém se reconhecer no
-                  anúncio.
-                </p>
-              </div>
-              <Link to="/ong/painel/novo-pet" className={buttonClass()}>
-                <Plus className="size-5" aria-hidden />
-                Cadastrar pet
-              </Link>
+                  <Card>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="max-w-sm">
+              <h2 className="text-2xl">Publicar um pet</h2>
+              <p className="mt-2 font-semibold text-ink-soft">
+                Quanto mais detalhes, mais fácil para alguém se reconhecer no
+                anúncio.
+              </p>
             </div>
-          </Card>
-        ) : (
-          <Card>
-            <VerifyNotice email={org.email} tone="blocking" />
-          </Card>
-        )}
+            <Link to="/ong/painel/novo-pet" className={buttonClass()}>
+              <Plus className="size-5" aria-hidden />
+              Cadastrar pet
+            </Link>
+          </div>
+        </Card>
 
         <PublishedPets org={org} />
       </div>

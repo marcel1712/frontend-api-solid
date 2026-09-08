@@ -62,16 +62,6 @@ export interface ApiOrg {
   city: string
   address: string
   created_at: string
-  /**
-   * Quando o e-mail foi confirmado, ou `null` se ainda não foi.
-   *
-   * O campo ainda não existe no backend — a verificação estava sendo escrita.
-   * As duas grafias estão aqui porque o schema mistura as convenções
-   * (`created_at` e `password_hash` em snake_case, `orgId` em camelCase), e não
-   * dá para saber qual sairá. Quando o campo existir, apague a que sobrar.
-   */
-  email_verified_at?: string | null
-  emailVerifiedAt?: string | null
 }
 
 /* ── Modelo de view ───────────────────────────────────────────────────────── */

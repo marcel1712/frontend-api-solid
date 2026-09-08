@@ -1,99 +1,34 @@
-import { MailCheck, MailWarning } from 'lucide-react'
-import { useState } from 'react'
-import { resendVerificationEmail } from '@/lib/api'
-import { Button } from './ui'
+import { MailWarning } from 'lucide-react'
 
 /**
- * O que a ONG vê enquanto não confirma o e-mail.
+ * O que a ONG vê quando tenta entrar sem ter confirmado o e-mail.
  *
- * Não é um erro — ela não fez nada errado, só falta um passo. Por isso o tom é
- * de pendência, com a ação de resolver ao lado, e não um alerta vermelho.
+ * Não é erro de credencial — a senha está certa, falta um passo. Por isso o
+ * tom é de pendência e não de recusa.
  *
- * `tone="blocking"` é a versão que substitui o cadastro de pet: um botão
- * desabilitado não explica por que está desabilitado, então no lugar dele
- * aparece o motivo e o que fazer.
+ * Sem botão de reenviar porque a API não tem esse endpoint. Enquanto não tiver,
+ * quem deixar o link de 24 horas expirar fica sem caminho de volta: o login
+ * recusa, e não há como pedir outro. Está anotado no README.
  */
-export function VerifyNotice({
-  email,
-  tone = 'reminder',
-}: {
-  email: string
-  tone?: 'reminder' | 'blocking'
-}) {
-  const [sent, setSent] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [sending, setSending] = useState(false)
-
-  async function resend() {
-    setError(null)
-    setSending(true)
-
-    try {
-      await resendVerificationEmail(email)
-      setSent(true)
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : 'Não foi possível reenviar agora.',
-      )
-    } finally {
-      setSending(false)
-    }
-  }
-
-  const blocking = tone === 'blocking'
-
+export function VerifyNotice({ email }: { email: string }) {
   return (
-    <div
-      className={
-        blocking
-          ? ''
-          : 'flex flex-col gap-4 rounded-3xl bg-brand-soft p-5 sm:flex-row sm:items-center'
-      }
-    >
-      <span
-        className={`grid shrink-0 place-items-center rounded-2xl bg-surface text-brand-deep ${
-          blocking ? 'size-14' : 'size-12'
-        }`}
-      >
-        {sent ? (
-          <MailCheck className={blocking ? 'size-7' : 'size-6'} aria-hidden />
-        ) : (
-          <MailWarning className={blocking ? 'size-7' : 'size-6'} aria-hidden />
-        )}
+    <div className="py-6 text-center">
+      <span className="mx-auto grid size-14 place-items-center rounded-2xl bg-brand-soft text-brand-deep">
+        <MailWarning className="size-7" aria-hidden />
       </span>
 
-      <div className={blocking ? 'mt-5' : 'flex-1'}>
-        <h2 className={blocking ? 'text-2xl' : 'font-display text-lg text-brand-deep'}>
-          {sent ? 'Link reenviado' : 'Confirme seu e-mail para publicar'}
-        </h2>
-        <p
-          className={`mt-2 font-semibold ${
-            blocking ? 'max-w-md text-ink-soft' : 'text-sm text-brand-deep/80'
-          }`}
-        >
-          {sent
-            ? `Mandamos um link novo para ${email}. Confira também a caixa de spam.`
-            : `Enviamos um link para ${email}. Enquanto ele não for aberto, seus pets não podem ir para a busca.`}
-        </p>
-        {error ? (
-          <p role="alert" className="mt-2 text-sm font-bold text-brand-deep">
-            {error}
-          </p>
-        ) : null}
-      </div>
+      <h2 className="mt-5 text-2xl">Confirme seu e-mail para entrar</h2>
 
-      {!sent ? (
-        <div className={blocking ? 'mt-6' : 'shrink-0'}>
-          <Button
-            variant={blocking ? 'primary' : 'outline'}
-            size={blocking ? 'md' : 'sm'}
-            onClick={() => void resend()}
-            disabled={sending}
-          >
-            {sending ? 'Enviando…' : 'Reenviar e-mail'}
-          </Button>
-        </div>
-      ) : null}
+      <p className="mx-auto mt-3 max-w-sm font-semibold text-ink-soft">
+        Enviamos um link para{' '}
+        <strong className="font-bold text-ink">{email}</strong> quando a conta foi
+        criada. Abra esse link e volte aqui.
+      </p>
+
+      <p className="mx-auto mt-3 max-w-sm text-sm font-semibold text-ink-soft">
+        Não achou? Veja a caixa de spam — o link vale 24 horas a partir do
+        cadastro.
+      </p>
     </div>
   )
 }
