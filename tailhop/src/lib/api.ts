@@ -8,8 +8,10 @@ import {
   mockOrgPets,
   mockPetPage,
   mockSearchPets,
+  mockDelay,
   mockSetAdopted,
   mockUploadPhoto,
+  mockVerifyEmail,
 } from './mock'
 import type {
   ApiOrg,
@@ -23,13 +25,20 @@ import type {
   Pet,
   PetPage,
   PetSearchParams,
+  ResetPasswordPayload,
   UploadTicket,
 } from './types'
 
 const BASE_URL = import.meta.env.VITE_API_URL?.replace(/\/$/, '') ?? ''
 
-/** Sem backend configurado o site roda com os dados fictícios. */
-export const usingMockData = BASE_URL === ''
+/**
+ * Dados fictícios existem para desenvolver sem subir o backend — e só para
+ * isso. Em produção eles são um risco: sem `VITE_API_URL`, o site mostraria
+ * pets inventados com WhatsApp que não existe para gente procurando adotar de
+ * verdade. Por isso o fallback é restrito ao build de desenvolvimento; em
+ * produção, a falta da variável derruba toda chamada com uma mensagem clara.
+ */
+export const usingMockData = BASE_URL === '' && import.meta.env.DEV
 
 /** Erro de rede/HTTP com uma mensagem que pode ser mostrada na tela. */
 export class ApiError extends Error {
@@ -64,6 +73,12 @@ interface RequestOptions extends RequestInit {
 }
 
 async function request<T>(path: string, init?: RequestOptions): Promise<T> {
+  if (!BASE_URL) {
+    throw new ApiError(
+      'O site está sem a conexão com o servidor configurada. Avise a equipe do Tailhop.',
+    )
+  }
+
   const headers = new Headers(init?.headers)
 
   // Só quem tem corpo declara o tipo. Mandar `Content-Type` num GET faria o
@@ -178,12 +193,9 @@ export async function fetchPetPage(id: string): Promise<PetPage> {
   }
 }
 
-/**
- * `POST /orgs`. O formulário da tela de cadastro é demonstrativo, então nada
- * chama esta função por enquanto — ela existe para a integração ser só trocar
- * a chamada no `OrgSignup`, sem espalhar fetch pelos componentes.
- */
+/** `POST /orgs` — cria a conta da ONG. Responde 409 se e-mail ou WhatsApp já existem. */
 export async function registerOrg(payload: OrgSignupPayload): Promise<void> {
+  if (usingMockData) return mockDelay()
   await request('/orgs', { method: 'POST', body: JSON.stringify(payload) })
 }
 
@@ -233,6 +245,69 @@ export async function setPetAdopted(petId: string, adopted: boolean): Promise<vo
     method: 'PATCH',
     authenticated: true,
     body: JSON.stringify({ adopted }),
+  })
+}
+
+/* ── Recuperação de senha ─────────────────────────────────────────────────── */
+
+/**
+ * `POST /orgs/password/forgot` — dispara o e-mail com o link de redefinição.
+ *
+ * A API responde 200 mesmo para e-mail inexistente, de propósito: dizer "esta
+ * conta não existe" entregaria a um atacante quais e-mails estão cadastrados.
+ * A tela acompanha isso e mostra a mesma confirmação nos dois casos.
+ */
+export async function requestPasswordReset(email: string): Promise<void> {
+  if (usingMockData) return mockDelay()
+
+  await request('/orgs/password/forgot', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  })
+}
+
+/**
+ * `POST /orgs/password/reset` — troca a senha usando o token do e-mail.
+ *
+ * O token vale uma hora e some depois de usado; a API devolve 400 nos dois
+ * casos, então a tela trata token inválido e expirado com a mesma saída: pedir
+ * um link novo.
+ */
+export async function resetPassword(payload: ResetPasswordPayload): Promise<void> {
+  if (usingMockData) return mockDelay()
+
+  await request('/orgs/password/reset', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+/* ── Verificação de e-mail ────────────────────────────────────────────────── */
+
+/**
+ * ATENÇÃO: estes dois endpoints ainda não existem no backend — a verificação
+ * de e-mail estava sendo construída quando esta tela foi feita. Os caminhos
+ * seguem o padrão já usado em `password/forgot` e `password/reset`, e o link
+ * do e-mail deve apontar para `${FRONTEND_URL}/verify-email?token=...`, igual
+ * ao de redefinição. Se o backend fechar num contrato diferente, é aqui que
+ * muda — nenhuma tela conhece a URL.
+ */
+export async function verifyEmail(token: string): Promise<void> {
+  if (usingMockData) return mockVerifyEmail(token)
+
+  await request('/orgs/email/verify', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  })
+}
+
+/** Reenvia o e-mail de verificação. Responde 200 mesmo se a conta não existe. */
+export async function resendVerificationEmail(email: string): Promise<void> {
+  if (usingMockData) return mockDelay()
+
+  await request('/orgs/email/resend', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
   })
 }
 
