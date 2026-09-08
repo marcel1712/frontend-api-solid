@@ -63,6 +63,12 @@ found a home:
 | --- |
 | ![Shelter signup](docs/password-rules.png) |
 
+Account recovery and verification, reached from links the API emails:
+
+| Forgot password | New password | Email verified |
+| --- | --- | --- |
+| ![Forgot password](docs/forgot-password.png) | ![Set a new password](docs/reset-password.png) | ![Email verified](docs/verify-email.png) |
+
 <table>
 <tr>
 <td width="50%"><img src="docs/mobile-home.png" alt="Landing page on mobile"></td>
@@ -256,8 +262,27 @@ npm run lint    # ESLint with the React Compiler rules
 ## Deployment
 
 Built for Vercel. It's a SPA, so `vercel.json` rewrites all routes to
-`index.html` — without that, a direct visit to `/pets` 404s. Set `VITE_API_URL`
-in the project's environment variables.
+`index.html` — without that, a direct visit to `/pets` 404s.
+
+**`VITE_API_URL` is required in production.** Vite inlines it at build time, so
+it must exist in the Vercel project before the build, and a change only takes
+effect on a redeploy. Without it every request fails with a visible message —
+deliberately, rather than falling back to the fictional data, which would show
+invented pets and unreachable WhatsApp numbers to people actually looking to
+adopt. That fallback is now restricted to development builds.
+
+### Routes the API links to by name
+
+The backend composes these URLs from its own `FRONTEND_URL`, so they must match
+exactly — renaming them breaks emails that were already sent. They are the only
+English paths in an otherwise Portuguese app.
+
+| Email | Link | Screen |
+| --- | --- | --- |
+| Password reset | `${FRONTEND_URL}/reset-password?token=…` | new password, with the same policy as signup |
+| Email verification | `${FRONTEND_URL}/verify-email?token=…` | verifies on open, offers a resend if the link is spent |
+
+Set `FRONTEND_URL` on the API to the deployed origin, with no trailing slash.
 
 > **The API needs `@fastify/cors` registered** before a deployed frontend can
 > reach it, since the browser calls it cross-origin. Read requests are
