@@ -265,8 +265,10 @@ Built for Vercel. It's a SPA, so `vercel.json` rewrites all routes to
 `index.html` — without that, a direct visit to `/pets` 404s.
 
 **`VITE_API_URL` is required in production.** Vite inlines it at build time, so
-it must exist in the Vercel project before the build, and a change only takes
-effect on a redeploy. Without it every request fails with a visible message —
+it must exist in the Vercel project, for the Production environment, *before*
+the build — setting it later changes nothing until a redeploy. A build that
+goes out without it produces a site that cannot reach the API at all, which is
+easy to miss because everything still renders. Without it every request fails with a visible message —
 deliberately, rather than falling back to the fictional data, which would show
 invented pets and unreachable WhatsApp numbers to people actually looking to
 adopt. That fallback is now restricted to development builds.
@@ -291,17 +293,10 @@ Set `FRONTEND_URL` on the API to the deployed origin, with no trailing slash.
 
 What is not built yet, and why:
 
-- **A resend endpoint, and this one is urgent.** Verification links last 24
-  hours, login refuses an unverified account, and there is no way to ask for
-  another link. Miss the window and the account is unreachable: it cannot log
-  in, cannot verify, and cannot be registered again because the email is taken.
-  Every screen that would offer a resend is written and waiting for the route.
-- **Treating an already-verified account as success.** Corporate mail scanners
-  open links to inspect them, and `GET /orgs/verify-email` is a plain link that
-  a scanner will follow — spending the one-time token before the person clicks,
-  and locking them out for good while there is no resend. Answering 200 when an
-  already-verified account is verified again removes that whole class of false
-  failure.
+- **Allowing localhost as an origin.** The API answers with a single fixed
+  origin, so a browser running the app locally against the deployed API is
+  blocked. An array — the deployed origin plus `http://localhost:5173` — fixes
+  development without loosening production.
 - **Mirroring the password policy in the API.** `POST /orgs/password/reset`
   accepts any six-character password, so the rules are a suggestion to anyone
   not using the form.
