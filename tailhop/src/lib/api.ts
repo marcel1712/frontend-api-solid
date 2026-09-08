@@ -343,13 +343,30 @@ export async function resetPassword(payload: ResetPasswordPayload): Promise<void
  * preflight. O token vale 24 horas e serve uma vez; inválido, expirado ou já
  * usado respondem 400 igualmente.
  *
- * Não existe reenvio na API. Enquanto não existir, um link expirado deixa a
- * conta sem caminho de volta, porque o login também recusa quem não verificou.
+ * Reusar um token que já verificou responde 200: o backend tornou a rota
+ * idempotente, então o antivírus de e-mail que abre o link antes da pessoa não
+ * queima mais a conta. Só token nunca usado e expirado dá 400.
  */
 export async function verifyEmail(token: string): Promise<void> {
   if (usingMockData) return mockVerifyEmail(token)
 
   await request(`/orgs/verify-email?token=${encodeURIComponent(token)}`)
+}
+
+/**
+ * `POST /orgs/verify-email/resend` — manda outro link.
+ *
+ * Responde 200 mesmo para e-mail inexistente ou já verificado, para não
+ * revelar quais contas existem. A tela mostra a mesma confirmação nos dois
+ * casos. Limitado a cinco por hora, então um 429 aqui é esperado.
+ */
+export async function resendVerificationEmail(email: string): Promise<void> {
+  if (usingMockData) return mockDelay()
+
+  await request('/orgs/verify-email/resend', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  })
 }
 
 /* ── Fotos do pet ─────────────────────────────────────────────────────────── */

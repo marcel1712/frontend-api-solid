@@ -1,4 +1,5 @@
 import { MailWarning } from 'lucide-react'
+import { ResendVerification } from './ResendVerification'
 
 /**
  * O que a ONG vê quando tenta entrar sem ter confirmado o e-mail.
@@ -6,9 +7,8 @@ import { MailWarning } from 'lucide-react'
  * Não é erro de credencial — a senha está certa, falta um passo. Por isso o
  * tom é de pendência e não de recusa.
  *
- * Sem botão de reenviar porque a API não tem esse endpoint. Enquanto não tiver,
- * quem deixar o link de 24 horas expirar fica sem caminho de volta: o login
- * recusa, e não há como pedir outro. Está anotado no README.
+ * O reenvio fica aqui porque este é o momento em que a pessoa descobre o
+ * problema — mandá-la procurar outra tela para resolver seria empurrar trabalho.
  */
 export function VerifyNotice({ email }: { email: string }) {
   return (
@@ -26,9 +26,10 @@ export function VerifyNotice({ email }: { email: string }) {
       </p>
 
       <p className="mx-auto mt-3 max-w-sm text-sm font-semibold text-ink-soft">
-        Não achou? Veja a caixa de spam — o link vale 24 horas a partir do
-        cadastro.
+        Não achou? Veja a caixa de spam — o link vale 24 horas.
       </p>
+
+      <ResendVerification email={email} />
     </div>
   )
 }

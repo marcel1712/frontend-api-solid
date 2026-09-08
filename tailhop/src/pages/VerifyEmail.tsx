@@ -3,6 +3,7 @@ import { useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useSearchParams } from 'react-router-dom'
 import { Card, OrgShell } from '@/components/OrgShell'
+import { ResendVerification } from '@/components/ResendVerification'
 import { buttonClass } from '@/components/button-styles'
 
 import { verifyEmail } from '@/lib/api'
@@ -39,9 +40,9 @@ function Outcome({
  *
  * A verificação dispara sozinha ao abrir: quem clicou no e-mail já expressou a
  * intenção, e pedir mais um clique aqui seria burocracia. O risco conhecido é o
- * antivírus de e-mail corporativo, que abre links para inspecionar e gastaria o
- * token antes da pessoa — o antídoto é o backend tratar "já verificado" como
- * sucesso, e não como erro. Ver a nota no README.
+ * antivírus de e-mail corporativo, que abre links para inspecionar. O backend
+ * fechou esse buraco: reusar um token que já verificou responde 200, então o
+ * scanner não queima mais a conta de ninguém.
  */
 export function VerifyEmail() {
   const [params] = useSearchParams()
@@ -70,6 +71,7 @@ export function VerifyEmail() {
               dele.
             </p>
           </Outcome>
+          <ResendVerification />
         </Card>
       </OrgShell>
     )
@@ -104,10 +106,11 @@ export function VerifyEmail() {
           >
             <p>{error}</p>
             <p className="mt-3 text-sm">
-              O link vale 24 horas e serve uma vez só. Se você já confirmou a
-              conta antes, é só entrar normalmente.
+              O link vale 24 horas. Se a conta já estava confirmada, é só entrar
+              normalmente.
             </p>
           </Outcome>
+          <ResendVerification />
         </Card>
       </OrgShell>
     )
