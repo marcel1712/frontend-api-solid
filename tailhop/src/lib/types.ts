@@ -95,3 +95,32 @@ export interface OrgSignupPayload {
   city: string
   address: string
 }
+
+/* ── Área da ONG ──────────────────────────────────────────────────────────── */
+
+/** Corpo de `POST /orgs/sessions`. */
+export interface CredentialsPayload {
+  email: string
+  password: string
+}
+
+/**
+ * `POST /pets`. A org vem do JWT, nunca do corpo — o backend ignora qualquer
+ * `orgId` enviado aqui, e é isso que impede uma ONG de publicar em nome de outra.
+ */
+export interface CreatePetPayload {
+  name: string
+  age: number
+  size: AnimalSize
+  type: AnimalType
+  bio?: string
+}
+
+/**
+ * Sessão guardada no navegador. O backend devolve só o token; o id da org sai
+ * do claim `sub` e o perfil vem de `GET /orgs/:id`.
+ */
+export interface Session {
+  token: string
+  org: ApiOrg
+}

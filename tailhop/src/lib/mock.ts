@@ -1,5 +1,11 @@
 import { matchesAgeGroup } from './format'
-import type { Pet, PetSearchParams } from './types'
+import type {
+  ApiOrg,
+  ApiPet,
+  CreatePetPayload,
+  Pet,
+  PetSearchParams,
+} from './types'
 
 /**
  * Dados fictícios usados quando `VITE_API_URL` não está definida, para o site
@@ -151,4 +157,90 @@ export async function mockSearchPets(params: PetSearchParams): Promise<Pet[]> {
 export async function mockFeaturedPets(limit: number): Promise<Pet[]> {
   await delay(450)
   return PETS.slice(0, limit)
+}
+
+/* ── Área da ONG no modo demonstração ─────────────────────────────────────── */
+
+const MOCK_ORG: ApiOrg = {
+  id: 'org-patas',
+  name: 'Patas Felizes',
+  email: 'contato@patasfelizes.org',
+  whatsapp: '5571999990001',
+  city: 'Salvador',
+  address: 'Rua das Acácias, 120 — Rio Vermelho',
+  created_at: '2026-01-15T12:00:00.000Z',
+}
+
+/** JWT de mentira, só para o `sub` ser lido pelo mesmo código do fluxo real. */
+function fakeToken(orgId: string): string {
+  const encode = (value: object) =>
+    btoa(JSON.stringify(value)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+
+  const exp = Math.floor(Date.now() / 1000) + 60 * 60 * 8
+  return `${encode({ alg: 'none', typ: 'JWT' })}.${encode({ sub: orgId, exp })}.demo`
+}
+
+/** No modo demonstração qualquer credencial entra — não há banco por trás. */
+export async function mockAuthenticate(credentials: {
+  email: string
+  password: string
+}): Promise<string> {
+  await delay(600)
+  if (!credentials.email || !credentials.password) {
+    throw new Error('Informe e-mail e senha.')
+  }
+  return fakeToken(MOCK_ORG.id)
+}
+
+export async function mockOrg(id: string): Promise<ApiOrg> {
+  await delay(300)
+  return { ...MOCK_ORG, id }
+}
+
+/**
+ * Pets cadastrados durante a demonstração. Ficam no navegador de quem está
+ * testando para sobreviverem a um refresh — sem isso o pet somia logo depois
+ * de ser publicado, que é justamente o momento que a tela promete.
+ */
+const DEMO_PETS_KEY = 'tailhop.demo-pets'
+
+function loadDemoPets(): Pet[] {
+  try {
+    const raw = localStorage.getItem(DEMO_PETS_KEY)
+    return raw ? (JSON.parse(raw) as Pet[]) : []
+  } catch {
+    return []
+  }
+}
+
+PETS.unshift(...loadDemoPets())
+
+/** Publica o pet na lista da demonstração, para o painel refletir o cadastro. */
+export async function mockCreatePet(payload: CreatePetPayload): Promise<ApiPet> {
+  await delay(700)
+
+  const pet: Pet = {
+    id: `mock-${Date.now()}`,
+    name: payload.name,
+    orgId: MOCK_ORG.id,
+    age: payload.age,
+    size: payload.size,
+    type: payload.type,
+    bio: payload.bio ?? null,
+    adopted: false,
+    created_at: new Date().toISOString(),
+    city: MOCK_ORG.city,
+    whatsapp: MOCK_ORG.whatsapp,
+    photoUrl: null,
+  }
+
+  PETS.unshift(pet)
+
+  try {
+    localStorage.setItem(DEMO_PETS_KEY, JSON.stringify([pet, ...loadDemoPets()]))
+  } catch {
+    // Navegador sem armazenamento: o pet ainda vale para esta sessão.
+  }
+
+  return pet
 }

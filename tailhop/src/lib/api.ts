@@ -1,7 +1,17 @@
 import { AGE_RANGE } from './format'
-import { mockFeaturedPets, mockSearchPets } from './mock'
+import {
+  mockAuthenticate,
+  mockCreatePet,
+  mockFeaturedPets,
+  mockOrg,
+  mockSearchPets,
+} from './mock'
 import type {
+  ApiOrg,
+  ApiPet,
   ApiPetWithWhatsapp,
+  CreatePetPayload,
+  CredentialsPayload,
   OrgSignupPayload,
   Pet,
   PetSearchParams,
@@ -21,34 +31,62 @@ export class ApiError extends Error {
     this.name = 'ApiError'
     this.status = status
   }
+
+  /** Sessão ausente ou expirada: quem chamou deve mandar a ONG para o login. */
+  get isUnauthorized() {
+    return this.status === 401
+  }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+/**
+ * Token da sessão da ONG. Fica aqui, e não num parâmetro de cada chamada, para
+ * que nenhum componente precise carregá-lo por aí. Quem o mantém é o
+ * `AuthProvider`, a única fonte da sessão.
+ */
+let authToken: string | null = null
+
+export function setAuthToken(token: string | null) {
+  authToken = token
+}
+
+interface RequestOptions extends RequestInit {
+  /** Anexa o `Authorization` da sessão; a chamada falha com 401 sem ela. */
+  authenticated?: boolean
+}
+
+async function request<T>(path: string, init?: RequestOptions): Promise<T> {
+  const headers = new Headers(init?.headers)
+
+  // Só quem tem corpo declara o tipo. Mandar `Content-Type` num GET faria o
+  // navegador disparar um preflight CORS à toa em toda busca.
+  if (init?.body) headers.set('Content-Type', 'application/json')
+  if (init?.authenticated && authToken) {
+    headers.set('Authorization', `Bearer ${authToken}`)
+  }
+
   let response: Response
 
   try {
-    response = await fetch(`${BASE_URL}${path}`, {
-      ...init,
-      // Só quem tem corpo declara o tipo. Mandar `Content-Type` num GET faria
-      // o navegador disparar um preflight CORS à toa em toda busca.
-      headers: init?.body
-        ? { 'Content-Type': 'application/json', ...init.headers }
-        : init?.headers,
-    })
+    response = await fetch(`${BASE_URL}${path}`, { ...init, headers })
   } catch {
     throw new ApiError('Não foi possível falar com o servidor. Verifique sua conexão.')
   }
 
   if (!response.ok) {
-    throw new ApiError(
-      response.status >= 500
-        ? 'O servidor não respondeu como esperado. Tente de novo em instantes.'
-        : 'Não foi possível concluir a busca.',
-      response.status,
-    )
+    throw new ApiError(messageForStatus(response.status), response.status)
   }
 
   return (await response.json()) as T
+}
+
+function messageForStatus(status: number): string {
+  if (status === 401) return 'Sua sessão expirou. Entre de novo para continuar.'
+  if (status === 403) return 'Esta conta não tem permissão para essa ação.'
+  if (status === 409) return 'Já existe uma ONG cadastrada com esses dados.'
+  if (status >= 500) {
+    return 'O servidor não respondeu como esperado. Tente de novo em instantes.'
+  }
+  return 'Não foi possível concluir a solicitação.'
 }
 
 /**
@@ -118,4 +156,50 @@ export async function fetchPetDetails(id: string): Promise<ApiPetWithWhatsapp> {
  */
 export async function registerOrg(payload: OrgSignupPayload): Promise<void> {
   await request('/orgs', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+/* ── Área da ONG ──────────────────────────────────────────────────────────── */
+
+/** `POST /orgs/sessions` — devolve só o token; o perfil vem depois. */
+export async function authenticateOrg(
+  credentials: CredentialsPayload,
+): Promise<string> {
+  if (usingMockData) return mockAuthenticate(credentials)
+
+  const { token } = await request<{ token: string }>('/orgs/sessions', {
+    method: 'POST',
+    body: JSON.stringify(credentials),
+  })
+  return token
+}
+
+/** `GET /orgs/:id` — perfil público da ONG, já sem o `password_hash`. */
+export async function fetchOrg(id: string): Promise<ApiOrg> {
+  if (usingMockData) return mockOrg(id)
+  return request<ApiOrg>(`/orgs/${id}`)
+}
+
+/** `POST /pets` — publica um pet na ONG autenticada. */
+export async function createPet(payload: CreatePetPayload): Promise<ApiPet> {
+  if (usingMockData) return mockCreatePet(payload)
+
+  return request<ApiPet>('/pets', {
+    method: 'POST',
+    authenticated: true,
+    body: JSON.stringify(payload),
+  })
+}
+
+/**
+ * Os pets publicados por uma ONG.
+ *
+ * A API não tem um endpoint "meus pets", então isto reaproveita a busca
+ * pública da cidade da ONG e mantém só os pets dela. Duas limitações herdadas
+ * daí: vem só a primeira página da cidade (20 pets, de todas as ONGs), e os já
+ * adotados ficam de fora, porque a busca os exclui na consulta. Um
+ * `GET /orgs/me/pets` no backend resolveria ambas.
+ */
+export async function fetchOrgPets(org: ApiOrg): Promise<Pet[]> {
+  const pets = await searchPets({ city: org.city })
+  return pets.filter((pet) => pet.orgId === org.id)
 }
