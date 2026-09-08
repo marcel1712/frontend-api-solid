@@ -1,9 +1,11 @@
+import { ApiError } from './api'
 import { matchesAgeGroup } from './format'
 import type {
   ApiOrg,
   ApiPet,
   CreatePetPayload,
   Pet,
+  PetPage,
   PetSearchParams,
 } from './types'
 
@@ -20,12 +22,12 @@ const PETS: Pet[] = [
     age: 2,
     size: 'Small',
     type: 'Dog',
-    bio: 'Brincalhão, adora colo e já é castrado. Se dá bem com crianças e com outros cachorros.',
+    bio: 'Brincalhão, adora colo e já é castrado. Se dá bem com crianças e com outros cachorros — dividiu o canil com mais quatro sem nenhum problema. Chegou até nós com seis meses, muito magro, depois de ser encontrado sozinho perto da rodoviária. Hoje está com o peso certo, vacinado e vermifugado. Precisa de alguém com paciência para os primeiros dias: ele estranha barulho alto e demora a dormir em casa nova. Passeia bem na coleira e já entende sentar e ficar.',
     adopted: false,
     created_at: '2026-08-02T12:00:00.000Z',
     city: 'Salvador',
     whatsapp: '5571999990001',
-    photoUrl: null,
+    photos: [],
   },
   {
     id: '22222222-2222-4222-8222-222222222222',
@@ -34,12 +36,12 @@ const PETS: Pet[] = [
     age: 0,
     size: 'Small',
     type: 'Cat',
-    bio: 'Curiosa e muito dócil. Já usa a caixinha de areia sem nenhum problema.',
+    bio: 'Curiosa e muito dócil. Já usa a caixinha de areia sem nenhum problema e come ração seca sem frescura. Foi resgatada com os irmãos num terreno baldio e é a mais sociável da ninhada: vem receber visita na porta. Ainda não é castrada por causa da idade, e a ONG acompanha esse retorno.',
     adopted: false,
     created_at: '2026-08-11T12:00:00.000Z',
     city: 'Salvador',
     whatsapp: '5571999990002',
-    photoUrl: null,
+    photos: [],
   },
   {
     id: '33333333-3333-4333-8333-333333333333',
@@ -53,12 +55,12 @@ const PETS: Pet[] = [
     created_at: '2026-08-19T12:00:00.000Z',
     city: 'Feira de Santana',
     whatsapp: '5575999990003',
-    photoUrl: null,
+    photos: [],
   },
   {
     id: '44444444-4444-4444-8444-444444444444',
     name: 'Nina',
-    orgId: 'org-miau',
+    orgId: 'org-recife',
     age: 3,
     size: 'Medium',
     type: 'Cat',
@@ -67,7 +69,7 @@ const PETS: Pet[] = [
     created_at: '2026-08-24T12:00:00.000Z',
     city: 'Recife',
     whatsapp: '5581999990004',
-    photoUrl: null,
+    photos: [],
   },
   {
     id: '55555555-5555-4555-8555-555555555555',
@@ -81,7 +83,7 @@ const PETS: Pet[] = [
     created_at: '2026-08-28T12:00:00.000Z',
     city: 'Salvador',
     whatsapp: '5571999990001',
-    photoUrl: null,
+    photos: [],
   },
   {
     id: '66666666-6666-4666-8666-666666666666',
@@ -95,12 +97,12 @@ const PETS: Pet[] = [
     created_at: '2026-09-01T12:00:00.000Z',
     city: 'Salvador',
     whatsapp: '5571999990002',
-    photoUrl: null,
+    photos: [],
   },
   {
     id: '77777777-7777-4777-8777-777777777777',
     name: 'Luna',
-    orgId: 'org-fiel',
+    orgId: 'org-recife',
     age: 1,
     size: 'Large',
     type: 'Dog',
@@ -109,12 +111,12 @@ const PETS: Pet[] = [
     created_at: '2026-09-03T12:00:00.000Z',
     city: 'Recife',
     whatsapp: '5581999990005',
-    photoUrl: null,
+    photos: [],
   },
   {
     id: '88888888-8888-4888-8888-888888888888',
     name: 'Amora',
-    orgId: 'org-patas',
+    orgId: 'org-fiel',
     age: 3,
     size: 'Small',
     type: 'Cat',
@@ -123,7 +125,7 @@ const PETS: Pet[] = [
     created_at: '2026-09-05T12:00:00.000Z',
     city: 'Feira de Santana',
     whatsapp: '5575999990006',
-    photoUrl: null,
+    photos: [],
   },
 ]
 
@@ -231,7 +233,7 @@ export async function mockCreatePet(payload: CreatePetPayload): Promise<ApiPet> 
     created_at: new Date().toISOString(),
     city: MOCK_ORG.city,
     whatsapp: MOCK_ORG.whatsapp,
-    photoUrl: null,
+    photos: [],
   }
 
   PETS.unshift(pet)
@@ -265,19 +267,35 @@ for (const id of loadAdoptedIds()) {
   if (pet) pet.adopted = true
 }
 
-export async function mockMarkAsAdopted(petId: string): Promise<void> {
+export async function mockSetAdopted(petId: string, adopted: boolean): Promise<void> {
   await delay(600)
 
   const pet = PETS.find((candidate) => candidate.id === petId)
   if (!pet) throw new Error('Este pet não está mais disponível.')
-  pet.adopted = true
+  pet.adopted = adopted
 
   try {
-    localStorage.setItem(
-      DEMO_ADOPTED_KEY,
-      JSON.stringify([...new Set([...loadAdoptedIds(), petId])]),
-    )
+    const ids = new Set(loadAdoptedIds())
+    if (adopted) ids.add(petId)
+    else ids.delete(petId)
+    localStorage.setItem(DEMO_ADOPTED_KEY, JSON.stringify([...ids]))
   } catch {
-    // Navegador sem armazenamento: a baixa ainda vale para esta sessão.
+    // Navegador sem armazenamento: a mudança ainda vale para esta sessão.
   }
+}
+
+/** Espelha `GET /orgs/me/pets`: os pets da ONG, adotados inclusive. */
+export async function mockOrgPets(org: ApiOrg): Promise<Pet[]> {
+  await delay(550)
+  return PETS.filter((pet) => pet.orgId === org.id)
+}
+
+/** Espelha a página de detalhes: o pet e a ONG que o publicou. */
+export async function mockPetPage(petId: string): Promise<PetPage> {
+  await delay(500)
+
+  const pet = PETS.find((candidate) => candidate.id === petId)
+  if (!pet) throw new ApiError('Este pet não está mais anunciado.', 404)
+
+  return { pet, org: { ...MOCK_ORG, id: pet.orgId, city: pet.city } }
 }

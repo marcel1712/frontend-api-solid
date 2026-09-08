@@ -3,18 +3,22 @@ import {
   mockAuthenticate,
   mockCreatePet,
   mockFeaturedPets,
-  mockMarkAsAdopted,
   mockOrg,
+  mockOrgPets,
+  mockPetPage,
   mockSearchPets,
+  mockSetAdopted,
 } from './mock'
 import type {
   ApiOrg,
+  ApiOwnPet,
   ApiPet,
   ApiPetWithWhatsapp,
   CreatePetPayload,
   CredentialsPayload,
   OrgSignupPayload,
   Pet,
+  PetPage,
   PetSearchParams,
 } from './types'
 
@@ -96,7 +100,12 @@ function messageForStatus(status: number): string {
  * número vem como `''`, e aí o card cai para o estado sem contato.
  */
 function toPet(pet: ApiPetWithWhatsapp, city: string): Pet {
-  return { ...pet, city, whatsapp: pet.whatsapp || null, photoUrl: null }
+  return {
+    ...pet,
+    city,
+    whatsapp: pet.whatsapp || null,
+    photos: pet.images.map((image) => image.url),
+  }
 }
 
 /**
@@ -145,9 +154,24 @@ export async function fetchFeaturedPets(limit = 4): Promise<Pet[]> {
     .slice(0, limit)
 }
 
-/** `GET /pets/:id` — detalhes do pet com o whatsapp da org dona. */
-export async function fetchPetDetails(id: string): Promise<ApiPetWithWhatsapp> {
-  return request<ApiPetWithWhatsapp>(`/pets/${id}`)
+/**
+ * Um pet e a ONG que o publicou, para a página de detalhes.
+ *
+ * `GET /pets/:id` entrega o whatsapp e as fotos, mas não o nome nem a cidade da
+ * ONG — esses saem de `GET /orgs/:id`. São duas requisições, aceitáveis numa
+ * página de detalhe; se a ONG falhar, a página ainda abre com o pet, porque a
+ * decisão de adotar não depende do endereço do abrigo.
+ */
+export async function fetchPetPage(id: string): Promise<PetPage> {
+  if (usingMockData) return mockPetPage(id)
+
+  const pet = await request<ApiPetWithWhatsapp>(`/pets/${id}`)
+  const org = await fetchOrg(pet.orgId).catch(() => null)
+
+  return {
+    pet: toPet(pet, org?.city ?? ''),
+    org,
+  }
 }
 
 /**
@@ -192,33 +216,39 @@ export async function createPet(payload: CreatePetPayload): Promise<ApiPet> {
 }
 
 /**
- * `PATCH /pets/:id/adopt` — dá baixa no anúncio.
+ * `PATCH /pets/:id/adopt` — dá baixa no anúncio ou o reabre.
  *
- * A API aceita `adopted: false` para reverter, mas a interface não expõe isso:
- * a busca não devolve pets adotados, então um pet revertido não teria como
- * voltar a aparecer no painel para ser desmarcado. Por isso a tela confirma
- * antes. Só a ONG dona passa daqui — o backend responde 403 para as outras.
+ * Reabrir só é possível porque `GET /orgs/me/pets` devolve os adotados: sem
+ * essa lista não haveria tela de onde chamar. Só a ONG dona passa daqui — o
+ * backend responde 403 para as outras.
  */
-export async function markPetAsAdopted(petId: string): Promise<void> {
-  if (usingMockData) return mockMarkAsAdopted(petId)
+export async function setPetAdopted(petId: string, adopted: boolean): Promise<void> {
+  if (usingMockData) return mockSetAdopted(petId, adopted)
 
   await request<{ adoptedPet: ApiPet }>(`/pets/${petId}/adopt`, {
     method: 'PATCH',
     authenticated: true,
-    body: JSON.stringify({ adopted: true }),
+    body: JSON.stringify({ adopted }),
   })
 }
 
 /**
- * Os pets publicados por uma ONG.
- *
- * A API não tem um endpoint "meus pets", então isto reaproveita a busca
- * pública da cidade da ONG e mantém só os pets dela. Duas limitações herdadas
- * daí: vem só a primeira página da cidade (20 pets, de todas as ONGs), e os já
- * adotados ficam de fora, porque a busca os exclui na consulta. Um
- * `GET /orgs/me/pets` no backend resolveria ambas.
+ * `GET /orgs/me/pets` — os pets da própria ONG, adotados inclusive, 20 por
+ * página. A org vem do JWT: nada que o cliente mande define de quem é a lista.
  */
-export async function fetchOrgPets(org: ApiOrg): Promise<Pet[]> {
-  const pets = await searchPets({ city: org.city })
-  return pets.filter((pet) => pet.orgId === org.id)
+export async function fetchOrgPets(org: ApiOrg, page = 1): Promise<Pet[]> {
+  if (usingMockData) return mockOrgPets(org)
+
+  const pets = await request<ApiOwnPet[]>(`/orgs/me/pets?page=${page}`, {
+    authenticated: true,
+  })
+
+  // O endpoint não devolve cidade nem whatsapp: ambos são da própria ONG, que
+  // já está em mãos aqui.
+  return pets.map((pet) => ({
+    ...pet,
+    city: org.city,
+    whatsapp: org.whatsapp || null,
+    photos: pet.images.map((image) => image.url),
+  }))
 }

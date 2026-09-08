@@ -29,13 +29,28 @@ export interface ApiPet {
   created_at: string
 }
 
+/** Model `PetImage`: um arquivo no R2, já com a URL pública montada. */
+export interface ApiPetImage {
+  id: string
+  petId: string
+  key: string
+  url: string
+  created_at: string
+}
+
 /**
- * O pet com o whatsapp da org dona junto. É o que `GET /pets/:id` e
- * `GET /pets/search` devolvem — a busca resolve o whatsapp no próprio use
- * case, sem query extra. Vem `''` quando a org não tem número.
+ * O pet com o whatsapp da org dona e as fotos junto. É o que `GET /pets/:id` e
+ * `GET /pets/search` devolvem — ambos resolvem tudo no próprio use case, sem
+ * query extra. O whatsapp vem `''` quando a org não tem número.
  */
 export interface ApiPetWithWhatsapp extends ApiPet {
   whatsapp: string
+  images: ApiPetImage[]
+}
+
+/** `GET /orgs/me/pets`: os pets da própria ONG, com fotos e incluindo adotados. */
+export interface ApiOwnPet extends ApiPet {
+  images: ApiPetImage[]
 }
 
 /** Model `Org` sem o `password_hash`, que a API nunca devolve. */
@@ -59,11 +74,8 @@ export interface ApiOrg {
 export interface Pet extends ApiPet {
   city: string
   whatsapp: string | null
-  /**
-   * O schema do backend ainda não tem campo de imagem. Fica `null` até o
-   * upload existir; o card cai para um ladrilho da marca nesse caso.
-   */
-  photoUrl: string | null
+  /** Fotos publicadas, na ordem em que vieram. Vazio é um estado normal. */
+  photos: string[]
 }
 
 /* ── Filtros ──────────────────────────────────────────────────────────────── */
@@ -123,4 +135,11 @@ export interface CreatePetPayload {
 export interface Session {
   token: string
   org: ApiOrg
+}
+
+/** O que a página de detalhes precisa: o pet e a ONG que o publicou. */
+export interface PetPage {
+  pet: Pet
+  /** `null` quando o perfil da ONG não pôde ser carregado. */
+  org: ApiOrg | null
 }
