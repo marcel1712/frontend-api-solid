@@ -43,7 +43,8 @@ layer for them, not patched in the client because it was quicker.
 | --- | --- |
 | ![Pet listing](docs/listing.png) | ![Shelter signup](docs/org-signup.png) |
 
-The authenticated side, where a shelter manages what it has published:
+The authenticated side, where a shelter publishes pets and closes the ads that
+found a home:
 
 | Sign in | Shelter dashboard | Publish a pet |
 | --- | --- | --- |
@@ -117,6 +118,13 @@ both light and brand backgrounds, labelled form fields, results announced via
 identical "Adopt" buttons is useless to a screen reader.
 
 **Filters live in the URL.** A search survives a reload and can be shared.
+
+**A confirmation step where the action is one-way.** Marking a pet as adopted
+removes it from search, and since search never returns adopted pets there is
+nowhere left in the UI to undo it. So the row asks once, inline, and spells out
+the consequence — a modal for a one-line action is ceremony, but doing it on a
+single click would be a trap. The row disappears the moment the API confirms,
+without refetching a list the pet could no longer appear in.
 
 **Session handling that doesn't fight the user.** The saved session is restored
 synchronously, before the first render, so a refresh on a private page never
@@ -213,12 +221,12 @@ Deliberately out of scope for now, and why:
   `registerOrg` is written and typed against `POST /orgs`; wiring it up is one
   call. Note the API also requires `password` and `address`, which the approved
   design doesn't collect.
-- **Marking a pet as adopted.** `PATCH /pets/:id/adopt` exists and is the next
-  action to add to the dashboard.
 - **`GET /orgs/me/pets`.** The dashboard reuses the public city search and keeps
   the shelter's own pets, because the API has no "my pets" endpoint. That
   inherits two limits: only the first page of the city, and adopted pets are
-  invisible since the search excludes them.
+  invisible since the search excludes them. That second limit is why marking a
+  pet as adopted is one-way in the UI: the API accepts `adopted: false`, but a
+  reverted pet would have no screen to be reverted from.
 - **`Ferret` can't be registered.** The Prisma enum spells it `Ferret` but the
   register controller validates against `"Furret"`, so neither spelling passes
   both layers. The option is left out of the form until the API is fixed —

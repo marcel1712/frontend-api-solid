@@ -1,42 +1,148 @@
-import { AlertCircle, MapPin, Plus } from 'lucide-react'
-import { useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { AlertCircle, Check, MapPin, Plus } from 'lucide-react'
+import { useCallback, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { Card, OrgShell } from '@/components/OrgShell'
 import { PetCardSkeleton } from '@/components/PetCard'
 import { buttonClass } from '@/components/button-styles'
 import { Button, Callout } from '@/components/ui'
-import { fetchOrgPets } from '@/lib/api'
+import { ApiError, fetchOrgPets, markPetAsAdopted } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { formatAge, formatSize, formatType } from '@/lib/format'
 import type { ApiOrg, Pet } from '@/lib/types'
 import { useRequest } from '@/lib/useRequest'
 
-/** Linha compacta: no painel a ONG confere o que publicou, não navega vitrine. */
-function PetRow({ pet }: { pet: Pet }) {
+interface PetRowProps {
+  pet: Pet
+  onAdopted: (pet: Pet) => void
+  onUnauthorized: () => void
+}
+
+/**
+ * Uma linha por pet: no painel a ONG confere e dá baixa no que publicou, não
+ * navega pela vitrine.
+ *
+ * Dar baixa é irreversível pela interface — a busca não devolve pets adotados,
+ * então o pet sai do painel e não sobra de onde desmarcá-lo. Daí a confirmação
+ * em dois passos, na própria linha: um diálogo para uma ação de uma linha só
+ * seria cerimônia demais, e o segundo passo já diz o que vai acontecer.
+ */
+function PetRow({ pet, onAdopted, onUnauthorized }: PetRowProps) {
+  const [confirming, setConfirming] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function confirm() {
+    setSaving(true)
+    setError(null)
+
+    try {
+      await markPetAsAdopted(pet.id)
+      onAdopted(pet)
+    } catch (cause) {
+      if (cause instanceof ApiError && cause.isUnauthorized) {
+        onUnauthorized()
+        return
+      }
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Não foi possível dar baixa neste anúncio.',
+      )
+      setSaving(false)
+      setConfirming(false)
+    }
+  }
+
   return (
-    <li className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-hairline py-4 first:border-t-0 first:pt-0">
-      <span className="font-display text-lg">{pet.name}</span>
-      <span className="rounded-pill bg-brand-soft px-3 py-1 text-xs font-bold text-brand-deep">
-        {formatType(pet.type)}
-      </span>
-      <span className="rounded-pill bg-shell px-2.5 py-1 text-xs font-bold text-ink-soft">
-        {formatAge(pet.age)}
-      </span>
-      <span className="rounded-pill bg-shell px-2.5 py-1 text-xs font-bold text-ink-soft">
-        {formatSize(pet.size)}
-      </span>
-      <span className="ml-auto flex items-center gap-1.5 text-sm font-bold text-ink-soft">
-        <MapPin className="size-4 text-brand" aria-hidden />
-        {pet.city}
-      </span>
+    <li className="border-t border-hairline py-4 first:border-t-0 first:pt-0">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="font-display text-lg">{pet.name}</span>
+        <span className="rounded-pill bg-brand-soft px-3 py-1 text-xs font-bold text-brand-deep">
+          {formatType(pet.type)}
+        </span>
+        <span className="rounded-pill bg-shell px-2.5 py-1 text-xs font-bold text-ink-soft">
+          {formatAge(pet.age)}
+        </span>
+        <span className="rounded-pill bg-shell px-2.5 py-1 text-xs font-bold text-ink-soft">
+          {formatSize(pet.size)}
+        </span>
+        <span className="flex items-center gap-1.5 text-sm font-bold text-ink-soft">
+          <MapPin className="size-4 text-brand" aria-hidden />
+          {pet.city}
+        </span>
+
+        {!confirming ? (
+          <button
+            type="button"
+            onClick={() => {
+              setConfirming(true)
+            }}
+            aria-label={`Marcar ${pet.name} como adotado`}
+            className="ml-auto rounded-pill px-4 py-2 text-sm font-bold text-brand transition-colors hover:bg-brand-soft"
+          >
+            Marcar como adotado
+          </button>
+        ) : null}
+      </div>
+
+      {confirming ? (
+        <div className="mt-3 rounded-2xl bg-shell p-4 sm:flex sm:items-center sm:gap-4">
+          <p className="text-sm font-semibold text-ink-soft sm:flex-1">
+            {pet.name} sai da busca, e o anúncio não pode ser reaberto por aqui.
+          </p>
+          <div className="mt-3 flex items-center gap-2 sm:mt-0 sm:shrink-0">
+            <Button size="sm" onClick={confirm} disabled={saving}>
+              {saving ? (
+                'Dando baixa…'
+              ) : (
+                <>
+                  <Check className="size-4" aria-hidden />
+                  Confirmar adoção
+                </>
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={saving}
+              onClick={() => {
+                setConfirming(false)
+              }}
+            >
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {error ? (
+        <p role="alert" className="mt-3 text-sm font-bold text-brand-deep">
+          {error}
+        </p>
+      ) : null}
     </li>
   )
 }
 
 function PublishedPets({ org }: { org: ApiOrg }) {
+  const navigate = useNavigate()
   const { data, loading, error, reload } = useRequest(
     useCallback(() => fetchOrgPets(org), [org]),
   )
+
+  // O pet sai da lista assim que a API confirma, sem refazer a busca inteira:
+  // ele já não voltaria nela de qualquer jeito.
+  const [adoptedIds, setAdoptedIds] = useState<string[]>([])
+  const [notice, setNotice] = useState<string | null>(null)
+
+  const onUnauthorized = useCallback(() => {
+    navigate('/ong/entrar', { replace: true })
+  }, [navigate])
+
+  const onAdopted = useCallback((pet: Pet) => {
+    setAdoptedIds((ids) => [...ids, pet.id])
+    setNotice(`${pet.name} foi marcado como adotado e saiu da busca.`)
+  }, [])
 
   if (loading) {
     return (
@@ -62,40 +168,60 @@ function PublishedPets({ org }: { org: ApiOrg }) {
     )
   }
 
-  if (!data?.length) {
-    return (
-      <Card>
-        <h2 className="text-2xl">Nenhum pet publicado ainda</h2>
-        <p className="mt-3 max-w-md font-semibold text-ink-soft">
-          Assim que você cadastrar o primeiro, ele aparece na busca de quem
-          procura adotar em {org.city}.
-        </p>
-        <Link to="/ong/painel/novo-pet" className={`${buttonClass()} mt-6`}>
-          <Plus className="size-5" aria-hidden />
-          Cadastrar pet
-        </Link>
-      </Card>
-    )
-  }
+  const pets = data?.filter((pet) => !adoptedIds.includes(pet.id)) ?? []
 
   return (
-    <Card>
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 className="text-2xl">Pets publicados</h2>
-        <p className="text-sm font-bold text-ink-soft">
-          {data.length} {data.length === 1 ? 'anunciado' : 'anunciados'}
-        </p>
+    <>
+      <div aria-live="polite" className="sr-only">
+        {notice}
       </div>
-      <ul className="mt-5">
-        {data.map((pet) => (
-          <PetRow key={pet.id} pet={pet} />
-        ))}
-      </ul>
-      <p className="mt-5 text-sm font-semibold text-ink-soft">
-        Pets já marcados como adotados saem desta lista, porque deixam de
-        aparecer na busca.
-      </p>
-    </Card>
+
+      {notice ? (
+        <Callout icon={<Check className="size-5" aria-hidden />}>{notice}</Callout>
+      ) : null}
+
+      {pets.length ? (
+        <Card>
+          <div className="flex flex-wrap items-baseline justify-between gap-3">
+            <h2 className="text-2xl">Pets publicados</h2>
+            <p className="text-sm font-bold text-ink-soft">
+              {pets.length} {pets.length === 1 ? 'anunciado' : 'anunciados'}
+            </p>
+          </div>
+          <ul className="mt-5">
+            {pets.map((pet) => (
+              <PetRow
+                key={pet.id}
+                pet={pet}
+                onAdopted={onAdopted}
+                onUnauthorized={onUnauthorized}
+              />
+            ))}
+          </ul>
+          <p className="mt-5 text-sm font-semibold text-ink-soft">
+            Pets marcados como adotados saem desta lista, porque deixam de
+            aparecer na busca.
+          </p>
+        </Card>
+      ) : (
+        <Card>
+          <h2 className="text-2xl">
+            {adoptedIds.length
+              ? 'Nenhum pet aguardando adoção'
+              : 'Nenhum pet publicado ainda'}
+          </h2>
+          <p className="mt-3 max-w-md font-semibold text-ink-soft">
+            {adoptedIds.length
+              ? 'Todos os seus anúncios foram adotados. Publique outro quando houver um novo resgate.'
+              : `Assim que você cadastrar o primeiro, ele aparece na busca de quem procura adotar em ${org.city}.`}
+          </p>
+          <Link to="/ong/painel/novo-pet" className={`${buttonClass()} mt-6`}>
+            <Plus className="size-5" aria-hidden />
+            Cadastrar pet
+          </Link>
+        </Card>
+      )}
+    </>
   )
 }
 

@@ -244,3 +244,40 @@ export async function mockCreatePet(payload: CreatePetPayload): Promise<ApiPet> 
 
   return pet
 }
+
+/**
+ * Pets marcados como adotados durante a demonstração. Ficam guardados junto
+ * com os cadastrados para que a baixa também sobreviva a um refresh.
+ */
+const DEMO_ADOPTED_KEY = 'tailhop.demo-adopted'
+
+function loadAdoptedIds(): string[] {
+  try {
+    const raw = localStorage.getItem(DEMO_ADOPTED_KEY)
+    return raw ? (JSON.parse(raw) as string[]) : []
+  } catch {
+    return []
+  }
+}
+
+for (const id of loadAdoptedIds()) {
+  const pet = PETS.find((candidate) => candidate.id === id)
+  if (pet) pet.adopted = true
+}
+
+export async function mockMarkAsAdopted(petId: string): Promise<void> {
+  await delay(600)
+
+  const pet = PETS.find((candidate) => candidate.id === petId)
+  if (!pet) throw new Error('Este pet não está mais disponível.')
+  pet.adopted = true
+
+  try {
+    localStorage.setItem(
+      DEMO_ADOPTED_KEY,
+      JSON.stringify([...new Set([...loadAdoptedIds(), petId])]),
+    )
+  } catch {
+    // Navegador sem armazenamento: a baixa ainda vale para esta sessão.
+  }
+}

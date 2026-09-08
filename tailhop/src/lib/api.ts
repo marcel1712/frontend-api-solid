@@ -3,6 +3,7 @@ import {
   mockAuthenticate,
   mockCreatePet,
   mockFeaturedPets,
+  mockMarkAsAdopted,
   mockOrg,
   mockSearchPets,
 } from './mock'
@@ -187,6 +188,24 @@ export async function createPet(payload: CreatePetPayload): Promise<ApiPet> {
     method: 'POST',
     authenticated: true,
     body: JSON.stringify(payload),
+  })
+}
+
+/**
+ * `PATCH /pets/:id/adopt` — dá baixa no anúncio.
+ *
+ * A API aceita `adopted: false` para reverter, mas a interface não expõe isso:
+ * a busca não devolve pets adotados, então um pet revertido não teria como
+ * voltar a aparecer no painel para ser desmarcado. Por isso a tela confirma
+ * antes. Só a ONG dona passa daqui — o backend responde 403 para as outras.
+ */
+export async function markPetAsAdopted(petId: string): Promise<void> {
+  if (usingMockData) return mockMarkAsAdopted(petId)
+
+  await request<{ adoptedPet: ApiPet }>(`/pets/${petId}/adopt`, {
+    method: 'PATCH',
+    authenticated: true,
+    body: JSON.stringify({ adopted: true }),
   })
 }
 
