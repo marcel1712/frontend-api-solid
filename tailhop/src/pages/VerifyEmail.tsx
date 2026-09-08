@@ -1,11 +1,11 @@
-import { AlertCircle, CheckCircle2, MailCheck } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { AlertCircle, CheckCircle2 } from 'lucide-react'
+import { useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useSearchParams } from 'react-router-dom'
 import { Card, OrgShell } from '@/components/OrgShell'
 import { buttonClass } from '@/components/button-styles'
-import { Button, Callout, Field } from '@/components/ui'
-import { resendVerificationEmail, verifyEmail } from '@/lib/api'
+
+import { verifyEmail } from '@/lib/api'
 import { useRequest } from '@/lib/useRequest'
 
 /** Bloco central das três saídas da tela, para elas ficarem idênticas em peso. */
@@ -31,59 +31,6 @@ function Outcome({
         <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">{actions}</div>
       ) : null}
     </div>
-  )
-}
-
-/** Reenvio, oferecido só quando o link falhou — antes disso não há o que pedir. */
-function ResendForm() {
-  const [email, setEmail] = useState('')
-  const [sent, setSent] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-
-  if (sent) {
-    return (
-      <Callout icon={<MailCheck className="size-5" aria-hidden />}>
-        Se essa conta existir e ainda não estiver verificada, o link novo já foi
-        enviado.
-      </Callout>
-    )
-  }
-
-  return (
-    <form
-      className="mt-8 flex flex-col gap-4 border-t border-hairline pt-6 text-left"
-      onSubmit={async (event) => {
-        event.preventDefault()
-        setError(null)
-        setSubmitting(true)
-        try {
-          await resendVerificationEmail(email.trim())
-          setSent(true)
-        } catch (cause) {
-          setError(
-            cause instanceof Error ? cause.message : 'Não foi possível reenviar agora.',
-          )
-        } finally {
-          setSubmitting(false)
-        }
-      }}
-    >
-      <Field
-        label="Receber um link novo"
-        type="email"
-        name="email"
-        required
-        autoComplete="email"
-        hint="Informe o e-mail que você usou no cadastro."
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
-        error={error ?? undefined}
-      />
-      <Button type="submit" disabled={submitting}>
-        {submitting ? 'Enviando…' : 'Reenviar verificação'}
-      </Button>
-    </form>
   )
 }
 
@@ -123,7 +70,6 @@ export function VerifyEmail() {
               dele.
             </p>
           </Outcome>
-          <ResendForm />
         </Card>
       </OrgShell>
     )
@@ -158,11 +104,10 @@ export function VerifyEmail() {
           >
             <p>{error}</p>
             <p className="mt-3 text-sm">
-              Links de verificação servem uma vez só. Se você já confirmou a conta
-              antes, é só entrar normalmente.
+              O link vale 24 horas e serve uma vez só. Se você já confirmou a
+              conta antes, é só entrar normalmente.
             </p>
           </Outcome>
-          <ResendForm />
         </Card>
       </OrgShell>
     )

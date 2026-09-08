@@ -2,6 +2,7 @@ import { AlertCircle, Info } from 'lucide-react'
 import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { Card, OrgShell } from '@/components/OrgShell'
+import { VerifyNotice } from '@/components/VerifyNotice'
 import { Button, Callout, Field } from '@/components/ui'
 import { ApiError, usingMockData } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
@@ -14,6 +15,7 @@ export function OrgLogin() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [unverified, setUnverified] = useState(false)
 
   if (org) return <Navigate to="/ong/painel" replace />
 
@@ -26,6 +28,14 @@ export function OrgLogin() {
       await signIn({ email, password })
       navigate('/ong/painel', { replace: true })
     } catch (cause) {
+      // 403 aqui significa conta sem e-mail confirmado — a senha estava certa.
+      // A API responde em inglês; a tela diz na língua de quem lê.
+      if (cause instanceof ApiError && cause.status === 403) {
+        setUnverified(true)
+        setSubmitting(false)
+        return
+      }
+
       // A API devolve o mesmo erro para e-mail inexistente e senha errada, de
       // propósito. A mensagem aqui acompanha isso e não entrega qual dos dois é.
       setError(
@@ -37,6 +47,26 @@ export function OrgLogin() {
       )
       setSubmitting(false)
     }
+  }
+
+  if (unverified) {
+    return (
+      <OrgShell title="Falta confirmar o e-mail" subtitle="É o último passo do cadastro.">
+        <Card>
+          <VerifyNotice email={email.trim()} />
+          <div className="mt-2 text-center">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setUnverified(false)
+              }}
+            >
+              Tentar com outra conta
+            </Button>
+          </div>
+        </Card>
+      </OrgShell>
+    )
   }
 
   return (

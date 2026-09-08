@@ -107,6 +107,11 @@ function messageForStatus(status: number): string {
   if (status === 401) return 'Sua sessão expirou. Entre de novo para continuar.'
   if (status === 403) return 'Esta conta não tem permissão para essa ação.'
   if (status === 409) return 'Limite atingido, ou o registro já existe.'
+  // A API limita tentativas por hora; sem isto a pessoa recebia uma mensagem
+  // genérica e tentava de novo, gastando o que restava do limite.
+  if (status === 429) {
+    return 'Muitas tentativas seguidas. Espere alguns minutos antes de tentar de novo.'
+  }
   if (status >= 500) {
     return 'O servidor não respondeu como esperado. Tente de novo em instantes.'
   }
@@ -285,30 +290,19 @@ export async function resetPassword(payload: ResetPasswordPayload): Promise<void
 /* ── Verificação de e-mail ────────────────────────────────────────────────── */
 
 /**
- * ATENÇÃO: estes dois endpoints ainda não existem no backend — a verificação
- * de e-mail estava sendo construída quando esta tela foi feita. Os caminhos
- * seguem o padrão já usado em `password/forgot` e `password/reset`, e o link
- * do e-mail deve apontar para `${FRONTEND_URL}/verify-email?token=...`, igual
- * ao de redefinição. Se o backend fechar num contrato diferente, é aqui que
- * muda — nenhuma tela conhece a URL.
+ * `GET /orgs/verify-email?token=` — confirma a conta pelo link do e-mail.
+ *
+ * É GET com o token na query, e sem cabeçalho customizado, então não dispara
+ * preflight. O token vale 24 horas e serve uma vez; inválido, expirado ou já
+ * usado respondem 400 igualmente.
+ *
+ * Não existe reenvio na API. Enquanto não existir, um link expirado deixa a
+ * conta sem caminho de volta, porque o login também recusa quem não verificou.
  */
 export async function verifyEmail(token: string): Promise<void> {
   if (usingMockData) return mockVerifyEmail(token)
 
-  await request('/orgs/email/verify', {
-    method: 'POST',
-    body: JSON.stringify({ token }),
-  })
-}
-
-/** Reenvia o e-mail de verificação. Responde 200 mesmo se a conta não existe. */
-export async function resendVerificationEmail(email: string): Promise<void> {
-  if (usingMockData) return mockDelay()
-
-  await request('/orgs/email/resend', {
-    method: 'POST',
-    body: JSON.stringify({ email }),
-  })
+  await request(`/orgs/verify-email?token=${encodeURIComponent(token)}`)
 }
 
 /* ── Fotos do pet ─────────────────────────────────────────────────────────── */

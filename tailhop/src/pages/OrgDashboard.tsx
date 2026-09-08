@@ -283,7 +283,7 @@ export function OrgDashboard() {
       }
     >
       <div className="flex flex-col gap-6">
-        <Card>
+                  <Card>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="max-w-sm">
               <h2 className="text-2xl">Publicar um pet</h2>

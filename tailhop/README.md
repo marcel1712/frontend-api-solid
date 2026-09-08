@@ -287,30 +287,35 @@ Set `FRONTEND_URL` on the API to the deployed origin, with no trailing slash.
 > **The API needs `@fastify/cors` registered** before a deployed frontend can
 > reach it, since the browser calls it cross-origin. Read requests are
 > deliberately preflight-free `GET`s, so a basic origin allowlist is enough.
-
 ## Notes and next steps
 
-Deliberately out of scope for now, and why:
+What is not built yet, and why:
 
-- **Pet photos.** The backend has no image column yet. `Pet.photoUrl` already
-  exists in the view model and stays `null`, so adding `photoUrl String?` and
-  populating it is a one-line change here.
-- **Shelter signup is demonstrative.** It validates and confirms, but posts
-  nothing — a public portfolio form shouldn't write to a real database.
-  `registerOrg` is written and typed against `POST /orgs`; wiring it up is one
-  call. Note the API also requires `password` and `address`, which the approved
-  design doesn't collect.
-- **Pagination.** Both listings take the first 20. Enough for the data that
-  exists, and the endpoints already accept `page`.
-- **`Ferret` can't be registered.** The Prisma enum spells it `Ferret` but the
-  register controller validates against `"Furret"`, so neither spelling passes
-  both layers. The option is left out of the form until the API is fixed —
-  offering a choice that always fails is worse than not offering it.
+- **A resend endpoint, and this one is urgent.** Verification links last 24
+  hours, login refuses an unverified account, and there is no way to ask for
+  another link. Miss the window and the account is unreachable: it cannot log
+  in, cannot verify, and cannot be registered again because the email is taken.
+  Every screen that would offer a resend is written and waiting for the route.
+- **Treating an already-verified account as success.** Corporate mail scanners
+  open links to inspect them, and `GET /orgs/verify-email` is a plain link that
+  a scanner will follow — spending the one-time token before the person clicks,
+  and locking them out for good while there is no resend. Answering 200 when an
+  already-verified account is verified again removes that whole class of false
+  failure.
+- **Mirroring the password policy in the API.** `POST /orgs/password/reset`
+  accepts any six-character password, so the rules are a suggestion to anyone
+  not using the form.
+- **Editing a published pet.** `PATCH /pets/:id` and `PATCH /orgs/:id` exist;
+  neither has a screen. The pet management page is where the first one belongs.
+- **Reordering photos.** The first photo is the cover, and the only way to
+  change it is to delete and re-upload. There is no order column.
+- **Pagination.** Both listings take the first 20. The endpoints already accept
+  `page`.
 
 ---
 
 <div align="center">
 
-Portfolio project — all data is fictional.
+Built by [Marcel](https://github.com/marcel1712) · [Backend API](https://github.com/marcel1712/api-solid)
 
 </div>
