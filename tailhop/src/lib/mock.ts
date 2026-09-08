@@ -204,7 +204,7 @@ export async function mockAuthenticate(credentials: {
 export async function mockOrg(id: string): Promise<ApiOrg> {
   await delay(300)
 
-  let unverified = false
+  let unverified: boolean
   try {
     unverified = localStorage.getItem('tailhop.demo-unverified') === '1'
   } catch {
