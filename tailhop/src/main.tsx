@@ -9,6 +9,7 @@ import { ManagePet } from '@/pages/ManagePet'
 import { NewPet } from '@/pages/NewPet'
 import { NotFound } from '@/pages/NotFound'
 import { OrgDashboard } from '@/pages/OrgDashboard'
+import { AdminReview } from '@/pages/AdminReview'
 import { OrgLogin } from '@/pages/OrgLogin'
 import { OrgSignup } from '@/pages/OrgSignup'
 import { PetDetails } from '@/pages/PetDetails'
@@ -54,6 +55,14 @@ createRoot(document.getElementById('root')!).render(
             element={
               <RequireAuth>
                 <NewPet />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <RequireAuth>
+                <AdminReview />
               </RequireAuth>
             }
           />

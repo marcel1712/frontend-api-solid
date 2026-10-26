@@ -1,5 +1,5 @@
 import { AlertCircle, CheckCircle2, Info } from 'lucide-react'
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Card, OrgShell } from '@/components/OrgShell'
 import { buttonClass } from '@/components/button-styles'
@@ -8,6 +8,7 @@ import { Button, Callout, Field } from '@/components/ui'
 import { ApiError, registerOrg, usingMockData } from '@/lib/api'
 import { scorePassword } from '@/lib/password'
 import { toE164 } from '@/lib/phone'
+import { cnpjDigits, formatCnpj, isValidCnpj } from '@/lib/cnpj'
 
 /**
  * `address` é exigido pelo `POST /orgs` e faltava aqui — sem ele o cadastro
@@ -28,6 +29,8 @@ export function OrgSignup() {
   const [passwordError, setPasswordError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [whatsappError, setWhatsappError] = useState<string | null>(null)
+  const [cnpj, setCnpj] = useState('')
+  const [cnpjError, setCnpjError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -37,6 +40,11 @@ export function OrgSignup() {
     // da digitação atrapalha quem ainda está formando a senha.
     if (!scorePassword(password, { email }).valid) {
       setPasswordError('A senha ainda não atende aos requisitos acima.')
+      return
+    }
+
+    if (!isValidCnpj(cnpj)) {
+      setCnpjError('Confira os números: este CNPJ não é válido.')
       return
     }
 
@@ -62,12 +70,20 @@ export function OrgSignup() {
         whatsapp,
         email: email.trim(),
         password,
+        cnpj: cnpjDigits(cnpj),
       })
       setSent(true)
     } catch (cause) {
+      // O 422 é a Receita dizendo que o CNPJ não existe: a conta de dígitos
+      // passou, então é número trocado — o erro vai no próprio campo.
+      if (cause instanceof ApiError && cause.status === 422) {
+        setCnpjError('Não encontramos este CNPJ na Receita Federal. Confira os números.')
+        setSubmitting(false)
+        return
+      }
       setError(
         cause instanceof ApiError && cause.status === 409
-          ? 'Já existe uma conta com este e-mail ou WhatsApp.'
+          ? 'Já existe uma conta com este e-mail, WhatsApp ou CNPJ.'
           : cause instanceof Error
             ? cause.message
             : 'Não foi possível concluir o cadastro. Tente de novo.',
@@ -106,6 +122,10 @@ export function OrgSignup() {
             <p className="mx-auto mt-3 max-w-sm text-sm font-semibold text-ink-soft">
               O link vale 24 horas. Se não chegar, confira a caixa de spam.
             </p>
+            <p className="mx-auto mt-3 max-w-sm text-sm font-semibold text-ink-soft">
+              Depois, no painel, envie o estatuto e a ata da diretoria. Assim que
+              a ONG for aprovada, os pets que você cadastrar entram na busca.
+            </p>
             <div className="mt-6">
               <Link to="/ong/entrar" className={buttonClass({ variant: 'outline' })}>
                 Já confirmei, quero entrar
@@ -127,20 +147,38 @@ export function OrgSignup() {
             ) : null}
 
             <div className="grid gap-5 sm:grid-cols-2">
-              {FIELDS.map((field) => (
-                <Field
-                  key={field.name}
-                  label={field.label}
-                  name={field.name}
-                  type={field.type}
-                  required
-                  autoComplete={field.autoComplete}
-                  hint={field.name === 'whatsapp' ? 'Com DDD. Ex.: (11) 98765-4321' : undefined}
-                  error={field.name === 'whatsapp' ? (whatsappError ?? undefined) : undefined}
-                  onChange={
-                    field.name === 'whatsapp' ? () => setWhatsappError(null) : undefined
-                  }
-                />
+              {FIELDS.map((field, index) => (
+                <Fragment key={field.name}>
+                  <Field
+                    label={field.label}
+                    name={field.name}
+                    type={field.type}
+                    required
+                    autoComplete={field.autoComplete}
+                    hint={field.name === 'whatsapp' ? 'Com DDD. Ex.: (11) 98765-4321' : undefined}
+                    error={field.name === 'whatsapp' ? (whatsappError ?? undefined) : undefined}
+                    onChange={
+                      field.name === 'whatsapp' ? () => setWhatsappError(null) : undefined
+                    }
+                  />
+                  {/* O CNPJ logo depois do nome: é a identidade da ONG. */}
+                  {index === 0 ? (
+                    <Field
+                      label="CNPJ"
+                      name="cnpj"
+                      inputMode="numeric"
+                      required
+                      placeholder="00.000.000/0000-00"
+                      value={formatCnpj(cnpj)}
+                      onChange={(event) => {
+                        setCnpj(cnpjDigits(event.target.value))
+                        setCnpjError(null)
+                      }}
+                      hint="Consultamos na Receita Federal para verificar a ONG."
+                      error={cnpjError ?? undefined}
+                    />
+                  ) : null}
+                </Fragment>
               ))}
               <Field
                 label="E-mail de contato"

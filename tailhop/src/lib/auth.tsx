@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   authenticateOrg,
-  fetchOrg,
+  fetchOwnOrg,
   onSessionEnded,
   renewSession,
   setAuthToken,
   signOutOrg,
 } from './api'
 import { AuthContext } from './auth-context'
-import type { ApiOrg, CredentialsPayload } from './types'
+import type { ApiOwnOrg, CredentialsPayload } from './types'
 
 /**
  * Onde a sessão inteira (token incluso) ficava antes do cookie de refresh.
@@ -41,30 +41,14 @@ function writeHint(active: boolean) {
   }
 }
 
-/**
- * Lê o `sub` do JWT sem verificar assinatura — quem valida é a API. Serve só
- * para saber de qual org é a sessão.
- */
-function readOrgId(token: string): string | null {
-  try {
-    const [, payload] = token.split('.')
-    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
-    const { sub } = JSON.parse(json) as { sub?: string }
-    return sub ?? null
-  } catch {
-    return null
-  }
-}
-
-async function restoreSession(): Promise<ApiOrg | null> {
+async function restoreSession(): Promise<ApiOwnOrg | null> {
   const token = await renewSession().catch(() => null)
-  const orgId = token ? readOrgId(token) : null
-  if (!orgId) return null
-  return fetchOrg(orgId).catch(() => null)
+  if (!token) return null
+  return fetchOwnOrg().catch(() => null)
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [org, setOrg] = useState<ApiOrg | null>(null)
+  const [org, setOrg] = useState<ApiOwnOrg | null>(null)
   const [restoring, setRestoring] = useState(readHint)
 
   useEffect(() => {
@@ -101,13 +85,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(async (credentials: CredentialsPayload) => {
     const token = await authenticateOrg(credentials)
 
-    const orgId = readOrgId(token)
-    if (!orgId) throw new Error('O servidor devolveu uma sessão inválida.')
-
     // O token precisa estar armado antes da próxima chamada: o perfil da ONG
     // já sai autenticado.
     setAuthToken(token)
-    const signedIn = await fetchOrg(orgId)
+    const signedIn = await fetchOwnOrg()
 
     writeHint(true)
     setOrg(signedIn)
@@ -123,9 +104,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setOrg(null)
   }, [])
 
+  // O status da verificação muda por fora — a ONG envia um documento, a equipe
+  // decide —, então quem mostra o status pode pedir a versão atual.
+  const refreshOrg = useCallback(async () => {
+    const current = await fetchOwnOrg()
+    setOrg(current)
+  }, [])
+
   const value = useMemo(
-    () => ({ org, restoring, signIn, signOut }),
-    [org, restoring, signIn, signOut],
+    () => ({ org, restoring, signIn, signOut, refreshOrg }),
+    [org, restoring, signIn, signOut, refreshOrg],
   )
 
   return <AuthContext value={value}>{children}</AuthContext>

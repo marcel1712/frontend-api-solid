@@ -2,6 +2,7 @@ import { ApiError } from './api'
 import { matchesAgeGroup } from './format'
 import type {
   ApiOrg,
+  ApiOwnOrg,
   ApiPet,
   ApiPetImage,
   CreatePetPayload,
@@ -168,7 +169,6 @@ export async function mockFeaturedPets(limit: number): Promise<Pet[]> {
 const MOCK_ORG: ApiOrg = {
   id: 'org-patas',
   name: 'Patas Felizes',
-  email: 'contato@patasfelizes.org',
   whatsapp: '5571999990001',
   city: 'Salvador',
   address: 'Rua das Acácias, 120 — Rio Vermelho',
@@ -194,6 +194,21 @@ export async function mockAuthenticate(credentials: {
     throw new Error('Informe e-mail e senha.')
   }
   return fakeToken(MOCK_ORG.id)
+}
+
+/** A ONG de demonstração já aprovada, para o painel abrir completo. */
+export async function mockOwnOrg(): Promise<ApiOwnOrg> {
+  await delay(300)
+  return {
+    ...MOCK_ORG,
+    email: 'contato@patasfelizes.org',
+    cnpj: '99999998999918',
+    status: 'Approved',
+    rejectionReason: null,
+    reviewedAt: '2026-01-16T12:00:00.000Z',
+    documents: [],
+    isAdmin: false,
+  }
 }
 
 export async function mockOrg(id: string): Promise<ApiOrg> {

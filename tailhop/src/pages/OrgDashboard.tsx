@@ -1,14 +1,15 @@
-import { AlertCircle, Check, MapPin, Plus } from 'lucide-react'
+import { AlertCircle, Check, MapPin, Plus, ShieldCheck } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Card, OrgShell } from '@/components/OrgShell'
+import { OrgVerification } from '@/components/OrgVerification'
 import { PetCardSkeleton, PetPhoto } from '@/components/PetCard'
 import { buttonClass } from '@/components/button-styles'
 import { Button, Callout } from '@/components/ui'
 import { ApiError, fetchOrgPets, setPetAdopted } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { formatAge, formatSize, formatType } from '@/lib/format'
-import type { ApiOrg, Pet } from '@/lib/types'
+import type { ApiOwnOrg, Pet } from '@/lib/types'
 import { useRequest } from '@/lib/useRequest'
 
 interface PetRowProps {
@@ -142,7 +143,10 @@ function PetRow({ pet, onChanged, onUnauthorized }: PetRowProps) {
   )
 }
 
-function PublishedPets({ org }: { org: ApiOrg }) {
+function PublishedPets({ org }: { org: ApiOwnOrg }) {
+  // Antes da aprovação os pets existem, mas ninguém de fora os vê: o painel
+  // diz isso em vez de prometer uma busca onde eles não estão.
+  const live = org.status === 'Approved'
   const navigate = useNavigate()
   const { data, loading, error, reload } = useRequest(
     useCallback(() => fetchOrgPets(org), [org]),
@@ -223,9 +227,9 @@ function PublishedPets({ org }: { org: ApiOrg }) {
       {listed.length ? (
         <Card>
           <div className="flex flex-wrap items-baseline justify-between gap-3">
-            <h2 className="text-2xl">Aguardando adoção</h2>
+            <h2 className="text-2xl">{live ? 'Aguardando adoção' : 'Rascunhos'}</h2>
             <p className="text-sm font-bold text-ink-soft">
-              {listed.length} na busca
+              {live ? `${listed.length} na busca` : 'Entram na busca quando a ONG for aprovada'}
             </p>
           </div>
           {rows(listed)}
@@ -240,7 +244,9 @@ function PublishedPets({ org }: { org: ApiOrg }) {
           <p className="mt-3 max-w-md font-semibold text-ink-soft">
             {adopted.length
               ? 'Todos os seus anúncios foram adotados. Publique outro quando houver um novo resgate.'
-              : `Assim que você cadastrar o primeiro, ele aparece na busca de quem procura adotar em ${org.city}.`}
+              : live
+                ? `Assim que você cadastrar o primeiro, ele aparece na busca de quem procura adotar em ${org.city}.`
+                : 'Já pode cadastrar os pets. Eles ficam guardados aqui e entram na busca quando a ONG for aprovada.'}
           </p>
           <Link to="/ong/painel/novo-pet" className={`${buttonClass()} mt-6`}>
             <Plus className="size-5" aria-hidden />
@@ -277,13 +283,23 @@ export function OrgDashboard() {
       title={org.name}
       subtitle={`Área da ONG — ${org.city}`}
       actions={
-        <Button variant="on-brand" size="sm" onClick={signOut}>
-          Sair
-        </Button>
+        <div className="flex items-center gap-2">
+          {org.isAdmin ? (
+            <Link to="/admin" className={buttonClass({ variant: 'on-brand', size: 'sm' })}>
+              <ShieldCheck className="size-4" aria-hidden />
+              Admin
+            </Link>
+          ) : null}
+          <Button variant="on-brand" size="sm" onClick={signOut}>
+            Sair
+          </Button>
+        </div>
       }
     >
       <div className="flex flex-col gap-6">
-                  <Card>
+        <OrgVerification org={org} />
+
+        <Card>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="max-w-sm">
               <h2 className="text-2xl">Publicar um pet</h2>

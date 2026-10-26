@@ -4,6 +4,7 @@ import {
   mockCreatePet,
   mockFeaturedPets,
   mockOrg,
+  mockOwnOrg,
   mockDeletePhoto,
   mockOrgPets,
   mockPetPage,
@@ -15,6 +16,14 @@ import {
 } from './mock'
 import type {
   ApiOrg,
+  ApiOrgForReview,
+  ApiOwnOrg,
+  DocumentConfirmation,
+  DocumentType,
+  OrgDocumentKind,
+  OrgStatus,
+  ReviewDecision,
+  CnpjCheck,
   ApiOwnPet,
   ApiPet,
   ApiPetImage,
@@ -257,10 +266,17 @@ export async function fetchFeaturedPets(limit = 4): Promise<Pet[]> {
  * página de detalhe; se a ONG falhar, a página ainda abre com o pet, porque a
  * decisão de adotar não depende do endereço do abrigo.
  */
-export async function fetchPetPage(id: string): Promise<PetPage> {
+export async function fetchPetPage(
+  id: string,
+  { asOwner = false }: { asOwner?: boolean } = {},
+): Promise<PetPage> {
   if (usingMockData) return mockPetPage(id)
 
-  const pet = await request<ApiPetWithWhatsapp>(`/pets/${id}`)
+  // A ONG ainda em análise só enxerga os próprios pets mandando o token: para
+  // o público, pet de ONG não aprovada não existe.
+  const pet = await request<ApiPetWithWhatsapp>(`/pets/${id}`, {
+    authenticated: asOwner,
+  })
   const org = await fetchOrg(pet.orgId).catch(() => null)
 
   return {
@@ -269,7 +285,10 @@ export async function fetchPetPage(id: string): Promise<PetPage> {
   }
 }
 
-/** `POST /orgs` — cria a conta da ONG. Responde 409 se e-mail ou WhatsApp já existem. */
+/**
+ * `POST /orgs` — cria a conta da ONG. Responde 409 se e-mail, WhatsApp ou CNPJ
+ * já existem, e 422 se a Receita não conhece o CNPJ.
+ */
 export async function registerOrg(payload: OrgSignupPayload): Promise<void> {
   if (usingMockData) return mockDelay()
   await request('/orgs', { method: 'POST', body: JSON.stringify(payload) })
@@ -343,7 +362,16 @@ export async function signOutOrg(): Promise<void> {
   await request('/orgs/sessions', { method: 'DELETE', credentials: 'include' })
 }
 
-/** `GET /orgs/:id` — perfil público da ONG, já sem o `password_hash`. */
+/**
+ * `GET /orgs/me` — a própria ONG, com o andamento da verificação. É a fonte
+ * da sessão: o perfil público (`GET /orgs/:id`) nem existe antes da aprovação.
+ */
+export async function fetchOwnOrg(): Promise<ApiOwnOrg> {
+  if (usingMockData) return mockOwnOrg()
+  return request<ApiOwnOrg>('/orgs/me', { authenticated: true })
+}
+
+/** `GET /orgs/:id` — perfil público de uma ONG aprovada. */
 export async function fetchOrg(id: string): Promise<ApiOrg> {
   if (usingMockData) return mockOrg(id)
   return request<ApiOrg>(`/orgs/${id}`)
@@ -472,10 +500,10 @@ function putSignedFile(
     }
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) resolve()
-      else reject(new ApiError('O envio da foto foi recusado pelo servidor de arquivos.', xhr.status))
+      else reject(new ApiError('O envio do arquivo foi recusado pelo servidor de arquivos.', xhr.status))
     }
     xhr.onerror = () =>
-      reject(new ApiError('Não foi possível enviar a foto. Verifique sua conexão.'))
+      reject(new ApiError('Não foi possível enviar o arquivo. Verifique sua conexão.'))
     xhr.onabort = () => reject(new ApiError('Envio cancelado.'))
 
     xhr.send(file)
@@ -551,4 +579,74 @@ export async function fetchOrgPets(org: ApiOrg, page = 1): Promise<Pet[]> {
     whatsapp: org.whatsapp || null,
     photos: pet.images,
   }))
+}
+
+/* ── Documentos da ONG ────────────────────────────────────────────────────── */
+
+/**
+ * Sobe um documento da ONG direto no bucket privado e confirma.
+ *
+ * Tipo e tamanho vão assinados na URL, então o arquivo enviado precisa ser
+ * exatamente o que foi anunciado — o navegador manda `Content-Length` sozinho
+ * a partir do `File`, e `putSignedFile` manda o mesmo `Content-Type`.
+ */
+export async function uploadOrgDocument(
+  kind: OrgDocumentKind,
+  file: File,
+  onProgress: (ratio: number) => void = () => {},
+): Promise<DocumentConfirmation> {
+  if (usingMockData) {
+    await mockDelay()
+    return { status: 'Pending', documents: [{ kind, uploadedAt: new Date().toISOString() }] }
+  }
+
+  const ticket = await request<{ key: string; uploadUrl: string }>('/orgs/me/documents', {
+    method: 'POST',
+    authenticated: true,
+    body: JSON.stringify({
+      kind,
+      contentType: file.type as DocumentType,
+      size: file.size,
+    }),
+  })
+
+  await putSignedFile(ticket.uploadUrl, file, onProgress)
+
+  try {
+    return await request<DocumentConfirmation>('/orgs/me/documents/confirm', {
+      method: 'POST',
+      authenticated: true,
+      body: JSON.stringify({ kind, key: ticket.key }),
+    })
+  } catch (cause) {
+    if (cause instanceof ApiError && cause.status === 404) {
+      throw new ApiError('O arquivo não chegou ao servidor. Tente enviar de novo.', 404)
+    }
+    throw cause
+  }
+}
+
+/* ── Painel admin ─────────────────────────────────────────────────────────── */
+
+/** `GET /admin/orgs` — ONGs num status, com a checagem do CNPJ e os documentos. */
+export async function fetchOrgsForReview(status: OrgStatus): Promise<ApiOrgForReview[]> {
+  if (usingMockData) return []
+  return request<ApiOrgForReview[]>(`/admin/orgs?status=${status}`, { authenticated: true })
+}
+
+/** `POST /admin/orgs/:id/review` — aprova ou recusa; os documentos são apagados. */
+export async function reviewOrg(orgId: string, decision: ReviewDecision): Promise<void> {
+  await request(`/admin/orgs/${orgId}/review`, {
+    method: 'POST',
+    authenticated: true,
+    body: JSON.stringify(decision),
+  })
+}
+
+/** `POST /admin/orgs/:id/cnpj-check` — consulta a Receita de novo. */
+export async function recheckOrgCnpj(orgId: string): Promise<CnpjCheck> {
+  return request<CnpjCheck>(`/admin/orgs/${orgId}/cnpj-check`, {
+    method: 'POST',
+    authenticated: true,
+  })
 }
