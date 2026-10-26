@@ -53,16 +53,92 @@ export interface ApiOwnPet extends ApiPet {
   images: ApiPetImage[]
 }
 
-/** Model `Org` sem o `password_hash`, que a API nunca devolve. */
+/** Perfil público da ONG (`GET /orgs/:id`). Só existe para ONG aprovada. */
 export interface ApiOrg {
   id: string
   name: string
-  email: string
   whatsapp: string
   city: string
   address: string
   created_at: string
 }
+
+/* ── Verificação da ONG ───────────────────────────────────────────────────── */
+
+/**
+ * Enum `OrgStatus`. A ONG nasce `Pending`, vai sozinha para `UnderReview`
+ * quando os dois documentos chegam, e a equipe decide entre `Approved` e
+ * `Rejected`. Só aprovada aparece para quem procura adotar.
+ */
+export type OrgStatus = 'Pending' | 'UnderReview' | 'Approved' | 'Rejected'
+
+/** Enum `OrgDocumentKind`: estatuto social e ata de eleição da diretoria. */
+export type OrgDocumentKind = 'Statute' | 'BoardMinutes'
+
+export const DOCUMENT_KINDS: OrgDocumentKind[] = ['Statute', 'BoardMinutes']
+
+/** Tipos que a API assina para documentos. O `PUT` precisa mandar o mesmo. */
+export const DOCUMENT_TYPES = ['application/pdf', 'image/jpeg', 'image/png'] as const
+export type DocumentType = (typeof DOCUMENT_TYPES)[number]
+
+/** Limite da API; o tamanho vai assinado na URL, então o R2 recusa o que passar. */
+export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024
+
+/** Quais documentos já chegaram — a ONG nunca recebe os arquivos de volta. */
+export interface OrgDocumentStatus {
+  kind: OrgDocumentKind
+  uploadedAt: string
+}
+
+/** `GET /orgs/me`: a própria ONG, com o andamento da verificação. */
+export interface ApiOwnOrg extends ApiOrg {
+  email: string
+  cnpj: string | null
+  status: OrgStatus
+  rejectionReason: string | null
+  reviewedAt: string | null
+  documents: OrgDocumentStatus[]
+  isAdmin: boolean
+}
+
+/** Resposta da confirmação de um documento. */
+export interface DocumentConfirmation {
+  status: OrgStatus
+  documents: OrgDocumentStatus[]
+}
+
+/* ── Painel admin ─────────────────────────────────────────────────────────── */
+
+/** Dados da Receita, como a BrasilAPI devolveu no cadastro. */
+export interface CnpjRecord {
+  legalName: string
+  tradeName: string | null
+  registrationStatus: string
+  legalNatureCode: number
+  legalNature: string
+  city: string
+  state: string
+  mainActivity: string
+  openedAt: string | null
+}
+
+/** Nota para quem analisa — nunca decide sozinha. */
+export interface CnpjCheck {
+  checkedAt: string
+  record: CnpjRecord | null
+  flags: { active: boolean; nonProfit: boolean; cityMatches: boolean } | null
+}
+
+/** Uma ONG na fila do `GET /admin/orgs`, com links de 10 minutos para os arquivos. */
+export interface ApiOrgForReview extends Omit<ApiOwnOrg, 'documents' | 'isAdmin'> {
+  emailVerifiedAt: string | null
+  cnpjCheck: CnpjCheck | null
+  documents: { kind: OrgDocumentKind; url: string; uploadedAt: string }[]
+}
+
+export type ReviewDecision =
+  | { decision: 'approve' }
+  | { decision: 'reject'; reason: string }
 
 /* ── Modelo de view ───────────────────────────────────────────────────────── */
 
@@ -101,7 +177,7 @@ export interface PetSearchParams {
 
 /* ── Cadastro de ONG ──────────────────────────────────────────────────────── */
 
-/** Corpo de `POST /orgs`. `password` e `address` são exigidos pela API. */
+/** Corpo de `POST /orgs`. `password`, `address` e `cnpj` são exigidos pela API. */
 export interface OrgSignupPayload {
   name: string
   email: string
@@ -109,6 +185,8 @@ export interface OrgSignupPayload {
   whatsapp: string
   city: string
   address: string
+  /** Só dígitos; a API também aceita com pontuação. */
+  cnpj: string
 }
 
 /* ── Área da ONG ──────────────────────────────────────────────────────────── */
@@ -129,15 +207,6 @@ export interface CreatePetPayload {
   size: AnimalSize
   type: AnimalType
   bio?: string
-}
-
-/**
- * Sessão guardada no navegador. O backend devolve só o token; o id da org sai
- * do claim `sub` e o perfil vem de `GET /orgs/:id`.
- */
-export interface Session {
-  token: string
-  org: ApiOrg
 }
 
 /** O que a página de detalhes precisa: o pet e a ONG que o publicou. */

@@ -22,7 +22,7 @@ export function ManagePet() {
   const navigate = useNavigate()
 
   const { data, loading, error, reload } = useRequest(
-    useCallback(() => fetchPetPage(id), [id]),
+    useCallback(() => fetchPetPage(id, { asOwner: true }), [id]),
   )
 
   // As fotos passam a viver aqui depois da primeira carga, para o envio e a
