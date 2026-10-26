@@ -3,8 +3,10 @@ import type { ApiOrg, CredentialsPayload } from './types'
 
 export interface AuthValue {
   org: ApiOrg | null
+  /** `true` enquanto a sessão salva no cookie ainda está sendo restaurada. */
+  restoring: boolean
   signIn: (credentials: CredentialsPayload) => Promise<void>
-  signOut: () => void
+  signOut: () => Promise<void>
 }
 
 /** Separado do provider para o Fast Refresh não perder estado a cada edição. */
