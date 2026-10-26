@@ -1,89 +1,131 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react'
-import { authenticateOrg, fetchOrg, setAuthToken } from './api'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import {
+  authenticateOrg,
+  fetchOrg,
+  onSessionEnded,
+  renewSession,
+  setAuthToken,
+  signOutOrg,
+} from './api'
 import { AuthContext } from './auth-context'
 import type { ApiOrg, CredentialsPayload } from './types'
 
-const STORAGE_KEY = 'tailhop.session'
+/**
+ * Onde a sessão inteira (token incluso) ficava antes do cookie de refresh.
+ * Quem logou numa versão antiga ainda tem o token lá; é apagado no boot.
+ */
+const LEGACY_STORAGE_KEY = 'tailhop.session'
 
-interface StoredSession {
-  token: string
-  org: ApiOrg
+/**
+ * Só um aviso de que vale a pena tentar renovar no boot — não carrega token
+ * nem dado nenhum. Sem ele, todo visitante, logado ou não, dispararia um
+ * refresh a cada página aberta só para ouvir um 401.
+ */
+const SESSION_HINT_KEY = 'tailhop.has-session'
+
+function readHint(): boolean {
+  try {
+    return localStorage.getItem(SESSION_HINT_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writeHint(active: boolean) {
+  try {
+    if (active) localStorage.setItem(SESSION_HINT_KEY, '1')
+    else localStorage.removeItem(SESSION_HINT_KEY)
+  } catch {
+    // Storage bloqueado (aba anônima, cookies de site desligados): a sessão
+    // ainda funciona, só não é restaurada no recarregamento.
+  }
 }
 
 /**
- * Lê o `sub` e o `exp` do JWT sem verificar assinatura — quem valida é a API.
- * Isto serve só para saber de qual org é a sessão e descartar um token já
- * vencido antes de gastar uma requisição com ele.
+ * Lê o `sub` do JWT sem verificar assinatura — quem valida é a API. Serve só
+ * para saber de qual org é a sessão.
  */
-function readToken(token: string): { orgId: string; expiresAt: number } | null {
+function readOrgId(token: string): string | null {
   try {
     const [, payload] = token.split('.')
     const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
-    const { sub, exp } = JSON.parse(json) as { sub?: string; exp?: number }
-    if (!sub) return null
-    return { orgId: sub, expiresAt: (exp ?? 0) * 1000 }
+    const { sub } = JSON.parse(json) as { sub?: string }
+    return sub ?? null
   } catch {
     return null
   }
 }
 
-/**
- * Restaura a sessão salva de forma síncrona, antes do primeiro render, e já
- * arma o token no cliente de API. Fazer isso num efeito abriria uma janela em
- * que um filho dispara requisição autenticada sem token, e faria quem já estava
- * logado piscar a tela de login a cada refresh.
- */
-function restoreSession(): StoredSession | null {
-  let session: StoredSession | null = null
-
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      const stored = JSON.parse(raw) as StoredSession
-      const claims = readToken(stored.token)
-
-      // Token vencido não vira sessão: melhor pedir login do que deixar a ONG
-      // preencher um cadastro inteiro para tomar 401 no envio.
-      if (claims && (!claims.expiresAt || claims.expiresAt > Date.now())) {
-        session = stored
-      }
-    }
-  } catch {
-    session = null
-  }
-
-  setAuthToken(session?.token ?? null)
-  return session
+async function restoreSession(): Promise<ApiOrg | null> {
+  const token = await renewSession().catch(() => null)
+  const orgId = token ? readOrgId(token) : null
+  if (!orgId) return null
+  return fetchOrg(orgId).catch(() => null)
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<StoredSession | null>(restoreSession)
+  const [org, setOrg] = useState<ApiOrg | null>(null)
+  const [restoring, setRestoring] = useState(readHint)
+
+  useEffect(() => {
+    try {
+      localStorage.removeItem(LEGACY_STORAGE_KEY)
+    } catch {
+      // Sem storage não há sessão antiga para apagar.
+    }
+
+    onSessionEnded(() => {
+      writeHint(false)
+      setOrg(null)
+    })
+
+    let cancelled = false
+
+    if (readHint()) {
+      // O StrictMode monta duas vezes em desenvolvimento; `renewSession` junta
+      // as duas chamadas numa só, então o cookie não gira em dobro.
+      restoreSession().then((restored) => {
+        if (cancelled) return
+        writeHint(restored !== null)
+        setOrg(restored)
+        setRestoring(false)
+      })
+    }
+
+    return () => {
+      cancelled = true
+      onSessionEnded(null)
+    }
+  }, [])
 
   const signIn = useCallback(async (credentials: CredentialsPayload) => {
     const token = await authenticateOrg(credentials)
 
-    const claims = readToken(token)
-    if (!claims) throw new Error('O servidor devolveu uma sessão inválida.')
+    const orgId = readOrgId(token)
+    if (!orgId) throw new Error('O servidor devolveu uma sessão inválida.')
 
     // O token precisa estar armado antes da próxima chamada: o perfil da ONG
     // já sai autenticado.
     setAuthToken(token)
-    const org = await fetchOrg(claims.orgId)
+    const signedIn = await fetchOrg(orgId)
 
-    const next = { token, org }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-    setSession(next)
+    writeHint(true)
+    setOrg(signedIn)
   }, [])
 
-  const signOut = useCallback(() => {
+  const signOut = useCallback(async () => {
+    // Revoga no servidor antes de limpar aqui: se a chamada falhar, o cookie
+    // seguiria vivo e a sessão voltaria no próximo recarregamento. Mesmo
+    // assim a tela sai — quem clicou em sair não pode ficar preso logado.
+    await signOutOrg().catch(() => {})
     setAuthToken(null)
-    localStorage.removeItem(STORAGE_KEY)
-    setSession(null)
+    writeHint(false)
+    setOrg(null)
   }, [])
 
   const value = useMemo(
-    () => ({ org: session?.org ?? null, signIn, signOut }),
-    [session, signIn, signOut],
+    () => ({ org, restoring, signIn, signOut }),
+    [org, restoring, signIn, signOut],
   )
 
   return <AuthContext value={value}>{children}</AuthContext>

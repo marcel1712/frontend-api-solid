@@ -60,9 +60,10 @@ export class ApiError extends Error {
 }
 
 /**
- * Token da sessão da ONG. Fica aqui, e não num parâmetro de cada chamada, para
- * que nenhum componente precise carregá-lo por aí. Quem o mantém é o
- * `AuthProvider`, a única fonte da sessão.
+ * Token de acesso da ONG. Fica só em memória, nunca no `localStorage`: um
+ * script injetado na página leria o storage, mas não alcança esta variável.
+ * Vale 15 minutos; quem o renova é `renewSession`, a partir do cookie
+ * `httpOnly` que o JavaScript nem enxerga.
  */
 let authToken: string | null = null
 
@@ -70,18 +71,19 @@ export function setAuthToken(token: string | null) {
   authToken = token
 }
 
+let sessionEndedListener: (() => void) | null = null
+
+/** O `AuthProvider` se registra aqui para saber quando a sessão morreu no meio do uso. */
+export function onSessionEnded(listener: (() => void) | null) {
+  sessionEndedListener = listener
+}
+
 interface RequestOptions extends RequestInit {
   /** Anexa o `Authorization` da sessão; a chamada falha com 401 sem ela. */
   authenticated?: boolean
 }
 
-async function request<T>(path: string, init?: RequestOptions): Promise<T> {
-  if (!BASE_URL) {
-    throw new ApiError(
-      'O site está sem a conexão com o servidor configurada. Avise a equipe do Tailhop.',
-    )
-  }
-
+async function send(path: string, init?: RequestOptions): Promise<Response> {
   const headers = new Headers(init?.headers)
 
   // Só quem tem corpo declara o tipo. Mandar `Content-Type` num GET faria o
@@ -91,12 +93,33 @@ async function request<T>(path: string, init?: RequestOptions): Promise<T> {
     headers.set('Authorization', `Bearer ${authToken}`)
   }
 
-  let response: Response
-
   try {
-    response = await fetch(`${BASE_URL}${path}`, { ...init, headers })
+    return await fetch(`${BASE_URL}${path}`, { ...init, headers })
   } catch {
     throw new ApiError('Não foi possível falar com o servidor. Verifique sua conexão.')
+  }
+}
+
+async function request<T>(path: string, init?: RequestOptions): Promise<T> {
+  if (!BASE_URL) {
+    throw new ApiError(
+      'O site está sem a conexão com o servidor configurada. Avise a equipe do Tailhop.',
+    )
+  }
+
+  let response = await send(path, init)
+
+  // O token de acesso vence a cada 15 minutos, inclusive no meio de um
+  // cadastro. Em vez de jogar a ONG para o login, renova pelo cookie e repete
+  // a chamada uma vez. Só se a renovação falhar a sessão acabou de verdade.
+  if (response.status === 401 && init?.authenticated) {
+    const token = await renewSession().catch(() => null)
+
+    if (token) {
+      response = await send(path, init)
+    } else {
+      sessionEndedListener?.()
+    }
   }
 
   if (!response.ok) {
@@ -108,6 +131,7 @@ async function request<T>(path: string, init?: RequestOptions): Promise<T> {
     throw new ApiError(messageForStatus(response.status, fields), response.status, fields)
   }
 
+  if (response.status === 204) return undefined as T
   return (await response.json()) as T
 }
 
@@ -253,7 +277,13 @@ export async function registerOrg(payload: OrgSignupPayload): Promise<void> {
 
 /* ── Área da ONG ──────────────────────────────────────────────────────────── */
 
-/** `POST /orgs/sessions` — devolve só o token; o perfil vem depois. */
+/**
+ * `POST /orgs/sessions` — devolve só o token; o perfil vem depois.
+ *
+ * `credentials: 'include'` é o que faz o navegador aceitar o cookie de refresh
+ * vindo de outra origem (`api.` → site). Sem ele o `Set-Cookie` é descartado
+ * em silêncio e a sessão não sobrevive a um recarregamento.
+ */
 export async function authenticateOrg(
   credentials: CredentialsPayload,
 ): Promise<string> {
@@ -261,9 +291,56 @@ export async function authenticateOrg(
 
   const { token } = await request<{ token: string }>('/orgs/sessions', {
     method: 'POST',
+    credentials: 'include',
     body: JSON.stringify(credentials),
   })
   return token
+}
+
+let pendingRenewal: Promise<string | null> | null = null
+
+/**
+ * `POST /orgs/sessions/refresh` — troca o cookie por um token de acesso novo.
+ * Devolve `null` quando não há sessão (cookie ausente, vencido ou revogado).
+ *
+ * Chamadas simultâneas compartilham uma renovação só. O backend gira o cookie
+ * a cada uso, e várias requisições tomando 401 juntas renovariam todas com o
+ * mesmo cookie — o que, passada a tolerância do backend, parece roubo e
+ * derruba todas as sessões da ONG.
+ *
+ * Com dados fictícios não há cookie: a sessão de mentira some no recarregamento.
+ */
+export function renewSession(): Promise<string | null> {
+  pendingRenewal ??= requestRenewal().finally(() => {
+    pendingRenewal = null
+  })
+  return pendingRenewal
+}
+
+async function requestRenewal(): Promise<string | null> {
+  if (usingMockData) return null
+
+  try {
+    const { token } = await request<{ token: string }>('/orgs/sessions/refresh', {
+      method: 'POST',
+      credentials: 'include',
+    })
+    setAuthToken(token)
+    return token
+  } catch (cause) {
+    if (cause instanceof ApiError && cause.isUnauthorized) {
+      setAuthToken(null)
+      return null
+    }
+    throw cause
+  }
+}
+
+/** `DELETE /orgs/sessions` — revoga a sessão no servidor e apaga o cookie. */
+export async function signOutOrg(): Promise<void> {
+  if (usingMockData) return
+
+  await request('/orgs/sessions', { method: 'DELETE', credentials: 'include' })
 }
 
 /** `GET /orgs/:id` — perfil público da ONG, já sem o `password_hash`. */
