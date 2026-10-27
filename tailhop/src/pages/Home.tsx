@@ -1,7 +1,7 @@
 import { MapPin, MessageCircle, SlidersHorizontal } from 'lucide-react'
 import { useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import dog from '@/assets/dog.png'
+import dog from '@/assets/dog.webp'
 import { CitySearch } from '@/components/CitySearch'
 import { Logo } from '@/components/Logo'
 import { PetCard, PetCardSkeleton } from '@/components/PetCard'
@@ -102,6 +102,8 @@ export function Home() {
               <img
                 src={dog}
                 alt="Filhote de corgi sentado, olhando para cima"
+                // A maior imagem da primeira tela: pedida antes do resto.
+                fetchPriority="high"
                 width={411}
                 height={607}
                 className="mx-auto w-full max-w-3xs drop-shadow-2xl lg:max-w-sm"
