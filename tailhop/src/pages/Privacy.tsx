@@ -191,10 +191,6 @@ const SECTIONS: LegalSection[] = [
             <strong>BrasilAPI</strong> — recebe só o número do CNPJ, para
             consultar os dados públicos da Receita Federal.
           </li>
-          <li>
-            <strong>Google Fonts</strong> — fornece as fontes do site; ao
-            carregá-las, o seu navegador informa o seu endereço IP ao Google.
-          </li>
         </ul>
         <p>
           Alguns desses serviços guardam dados em servidores fora do Brasil,
