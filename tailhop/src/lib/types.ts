@@ -187,6 +187,8 @@ export interface OrgSignupPayload {
   address: string
   /** Só dígitos; a API também aceita com pontuação. */
   cnpj: string
+  /** Versão dos termos que a pessoa aceitou — ver `lib/legal.ts`. */
+  termsVersion: string
 }
 
 /* ── Área da ONG ──────────────────────────────────────────────────────────── */

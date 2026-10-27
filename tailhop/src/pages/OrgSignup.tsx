@@ -9,6 +9,7 @@ import { ApiError, registerOrg, usingMockData } from '@/lib/api'
 import { scorePassword } from '@/lib/password'
 import { toE164 } from '@/lib/phone'
 import { cnpjDigits, formatCnpj, isValidCnpj } from '@/lib/cnpj'
+import { TERMS_VERSION } from '@/lib/legal'
 
 /**
  * `address` é exigido pelo `POST /orgs` e faltava aqui — sem ele o cadastro
@@ -71,6 +72,7 @@ export function OrgSignup() {
         email: email.trim(),
         password,
         cnpj: cnpjDigits(cnpj),
+        termsVersion: TERMS_VERSION,
       })
       setSent(true)
     } catch (cause) {
@@ -201,6 +203,32 @@ export function OrgSignup() {
               context={{ email }}
               error={passwordError ?? undefined}
             />
+
+            {/* `required` no próprio checkbox: o navegador não deixa enviar sem
+                o aceite, e a API recusa de qualquer forma sem a versão. */}
+            <label className="flex items-start gap-3 text-sm font-semibold text-ink-soft">
+              <input
+                type="checkbox"
+                name="terms"
+                required
+                className="mt-0.5 size-5 shrink-0 accent-brand"
+              />
+              <span>
+                Li e aceito os{' '}
+                <Link to="/termos" target="_blank" className="font-bold text-brand hover:underline">
+                  Termos de uso
+                </Link>{' '}
+                e a{' '}
+                <Link
+                  to="/privacidade"
+                  target="_blank"
+                  className="font-bold text-brand hover:underline"
+                >
+                  Política de privacidade
+                </Link>
+                , e confirmo que represento esta ONG.
+              </span>
+            </label>
 
             <Button type="submit" size="lg" full disabled={submitting}>
               {submitting ? 'Criando conta…' : 'Criar conta'}
