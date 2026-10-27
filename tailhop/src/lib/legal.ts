@@ -9,7 +9,7 @@ export const TERMS_VERSION = '2026-10-26'
 export const TERMS_UPDATED_AT = '26 de outubro de 2026'
 
 /** Quem responde pelos dados (o "controlador" da LGPD). */
-export const CONTROLLER_NAME = '[NOME COMPLETO DO RESPONSÁVEL]'
+export const CONTROLLER_NAME = 'Marcel Henrique Rodrigues Batista'
 
 /** Canal para pedidos de titulares: acesso, correção, exclusão. */
 export const PRIVACY_EMAIL = 'privacidade@tailhop.com.br'
