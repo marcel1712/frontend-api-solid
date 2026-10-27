@@ -97,6 +97,20 @@ export function Footer() {
             ? 'Modo demonstração — todos os dados são fictícios.'
             : 'Pets anunciados por ONGs parceiras. O contato acontece no WhatsApp delas.'}
         </p>
+        <nav aria-label="Informações legais" className="flex shrink-0 items-center gap-1">
+          <Link
+            to="/termos"
+            className="rounded-pill px-3 py-2 text-sm font-bold whitespace-nowrap text-ink-soft transition-colors hover:bg-brand-soft hover:text-brand"
+          >
+            Termos de uso
+          </Link>
+          <Link
+            to="/privacidade"
+            className="rounded-pill px-3 py-2 text-sm font-bold whitespace-nowrap text-ink-soft transition-colors hover:bg-brand-soft hover:text-brand"
+          >
+            Privacidade
+          </Link>
+        </nav>
         <a
           href={GITHUB_URL}
           target="_blank"

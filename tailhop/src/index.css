@@ -85,3 +85,56 @@
     #e50069 100%
   );
 }
+
+/* Texto corrido das páginas legais: listas, tabelas e links legíveis sem
+   depender do plugin de tipografia. */
+@layer components {
+  .legal-prose {
+    color: var(--color-ink-soft);
+    font-weight: 600;
+    line-height: 1.75;
+  }
+
+  .legal-prose > * + * {
+    margin-top: 1rem;
+  }
+
+  .legal-prose strong {
+    color: var(--color-ink);
+    font-weight: 800;
+  }
+
+  .legal-prose a {
+    color: var(--color-brand);
+    font-weight: 700;
+    text-decoration: underline;
+  }
+
+  .legal-prose ul {
+    list-style: disc;
+    padding-left: 1.25rem;
+  }
+
+  .legal-prose li + li {
+    margin-top: 0.5rem;
+  }
+
+  .legal-prose table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+
+  .legal-prose th,
+  .legal-prose td {
+    border-top: 1px solid var(--color-hairline);
+    padding: 0.75rem 0.75rem 0.75rem 0;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .legal-prose th {
+    color: var(--color-ink);
+    font-weight: 800;
+  }
+}

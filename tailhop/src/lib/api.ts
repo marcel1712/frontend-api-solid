@@ -156,6 +156,9 @@ const FIELD_LABEL: Record<string, string> = {
   size: 'porte',
   type: 'espécie',
   bio: 'descrição',
+  cnpj: 'CNPJ',
+  // Só falha se a página aberta for de antes de os termos mudarem.
+  termsVersion: 'aceite dos termos (recarregue a página para ver a versão atual)',
 }
 
 interface ZodIssue {

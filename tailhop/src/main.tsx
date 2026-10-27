@@ -10,6 +10,8 @@ import { NewPet } from '@/pages/NewPet'
 import { NotFound } from '@/pages/NotFound'
 import { OrgDashboard } from '@/pages/OrgDashboard'
 import { AdminReview } from '@/pages/AdminReview'
+import { Privacy } from '@/pages/Privacy'
+import { Terms } from '@/pages/Terms'
 import { OrgLogin } from '@/pages/OrgLogin'
 import { OrgSignup } from '@/pages/OrgSignup'
 import { PetDetails } from '@/pages/PetDetails'
@@ -28,6 +30,8 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/pets/:id" element={<PetDetails />} />
           <Route path="/ong" element={<OrgSignup />} />
           <Route path="/ong/entrar" element={<OrgLogin />} />
+          <Route path="/privacidade" element={<Privacy />} />
+          <Route path="/termos" element={<Terms />} />
           <Route path="/esqueci-senha" element={<ForgotPassword />} />
           {/* Os dois caminhos abaixo são ditados pelos links que a API monta
               nos e-mails, por isso estão em inglês. Mudá-los quebra e-mails já
