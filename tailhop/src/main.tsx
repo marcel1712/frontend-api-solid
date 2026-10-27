@@ -9,6 +9,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { RequireAuth } from '@/components/RequireAuth'
 import { AuthProvider } from '@/lib/auth'
+import { startMonitoring } from '@/lib/monitoring'
 import { Home } from '@/pages/Home'
 import { NotFound } from '@/pages/NotFound'
 
@@ -38,6 +39,8 @@ const AdminReview = page(() => import('@/pages/AdminReview'), 'AdminReview')
 const Privacy = page(() => import('@/pages/Privacy'), 'Privacy')
 const Terms = page(() => import('@/pages/Terms'), 'Terms')
 import './index.css'
+
+startMonitoring()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -188,6 +188,13 @@ const SECTIONS: LegalSection[] = [
           <li><strong>Vercel</strong> — hospeda as páginas do site.</li>
           <li><strong>Resend</strong> — envia os e-mails do Tailhop.</li>
           <li>
+            <strong>Sentry</strong> — recebe relatórios de erros do site e do
+            servidor, para que possam ser corrigidos. Os relatórios dizem o que
+            falhou e em que parte do código, sem senhas, cookies, conteúdo de
+            formulários, endereço IP ou os códigos dos links enviados por
+            e-mail.
+          </li>
+          <li>
             <strong>BrasilAPI</strong> — recebe só o número do CNPJ, para
             consultar os dados públicos da Receita Federal.
           </li>
@@ -273,6 +280,7 @@ const SECTIONS: LegalSection[] = [
         </li>
         <li>Tentativas de login e outros pedidos sensíveis têm limite por minuto.</li>
         <li>Só a equipe do Tailhop tem acesso ao painel de verificação.</li>
+        <li>Falhas no site são registradas para correção, sempre sem dados pessoais.</li>
       </ul>
     ),
   },
