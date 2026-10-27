@@ -4,7 +4,7 @@
  * grava como prova do aceite. Mudou o texto: muda a data aqui e lá, sobe a API
  * primeiro (ela aceita a versão anterior durante a troca) e depois o site.
  */
-export const TERMS_VERSION = '2026-10-27'
+export const TERMS_VERSION = '2026-10-27-b'
 
 /** A data por extenso, para o "Atualizado em" das páginas. */
 export const TERMS_UPDATED_AT = '27 de outubro de 2026'
