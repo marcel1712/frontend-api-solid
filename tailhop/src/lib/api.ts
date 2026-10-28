@@ -653,3 +653,15 @@ export async function recheckOrgCnpj(orgId: string): Promise<CnpjCheck> {
     authenticated: true,
   })
 }
+
+/**
+ * `DELETE /admin/orgs/:id` — apaga a ONG e tudo que é dela; o e-mail e o
+ * WhatsApp ficam bloqueados para um novo cadastro.
+ */
+export async function deleteOrg(orgId: string, reason: string): Promise<void> {
+  await request(`/admin/orgs/${orgId}`, {
+    method: 'DELETE',
+    authenticated: true,
+    body: JSON.stringify({ reason }),
+  })
+}
