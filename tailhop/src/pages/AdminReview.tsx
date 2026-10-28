@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   ExternalLink,
   RefreshCw,
+  Trash2,
   X,
   XCircle,
 } from 'lucide-react'
@@ -13,7 +14,7 @@ import { Link } from 'react-router-dom'
 import { Card, OrgShell } from '@/components/OrgShell'
 import { buttonClass } from '@/components/button-styles'
 import { Button, Callout, TextAreaField } from '@/components/ui'
-import { recheckOrgCnpj, fetchOrgsForReview, reviewOrg } from '@/lib/api'
+import { recheckOrgCnpj, deleteOrg, fetchOrgsForReview, reviewOrg } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { formatCnpj } from '@/lib/cnpj'
 import type { ApiOrgForReview, CnpjCheck, OrgStatus } from '@/lib/types'
@@ -139,6 +140,9 @@ function OrgReviewCard({
   const [reason, setReason] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteReason, setDeleteReason] = useState('')
+  const [deletingSaving, setDeletingSaving] = useState(false)
 
   async function decide(decision: 'approve' | 'reject') {
     setSaving(true)
@@ -156,6 +160,18 @@ function OrgReviewCard({
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Não foi possível salvar a decisão.')
       setSaving(false)
+    }
+  }
+
+  async function handleDelete() {
+    setDeletingSaving(true)
+    setError(null)
+    try {
+      await deleteOrg(org.id, deleteReason.trim())
+      onDecided(`${org.name} foi excluída. O e-mail e o WhatsApp não podem se cadastrar de novo.`)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Não foi possível excluir.')
+      setDeletingSaving(false)
     }
   }
 
@@ -250,6 +266,45 @@ function OrgReviewCard({
           </p>
         </div>
       ) : null}
+
+      <div className="mt-6 border-t border-hairline pt-5">
+        {deleting ? (
+          <div className="flex flex-col gap-4">
+            <TextAreaField
+              label="Motivo da exclusão"
+              hint="Fica registrado junto ao bloqueio do e-mail e do WhatsApp. Não é enviado para ninguém."
+              rows={3}
+              value={deleteReason}
+              onChange={(event) => setDeleteReason(event.target.value)}
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={() => void handleDelete()}
+                disabled={deletingSaving || deleteReason.trim().length < MIN_REASON}
+              >
+                <Trash2 className="size-4" aria-hidden />
+                {deletingSaving ? 'Excluindo…' : 'Excluir e bloquear'}
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => setDeleting(false)}
+                disabled={deletingSaving}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button variant="outline" onClick={() => setDeleting(true)}>
+            <Trash2 className="size-4" aria-hidden />
+            Excluir cadastro
+          </Button>
+        )}
+        <p className="mt-3 text-sm font-semibold text-ink-soft">
+          Apaga a ONG, os pets e os documentos dela. O e-mail e o WhatsApp usados ficam
+          bloqueados para um novo cadastro — use para contas falsas ou de má-fé.
+        </p>
+      </div>
 
       {error ? (
         <p role="alert" className="mt-3 text-sm font-bold text-brand-deep">
