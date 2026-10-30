@@ -669,13 +669,41 @@ export async function recheckOrgCnpj(orgId: string): Promise<CnpjCheck> {
 }
 
 /**
- * `DELETE /admin/orgs/:id` — apaga a ONG e tudo que é dela; o e-mail e o
- * WhatsApp ficam bloqueados para um novo cadastro.
+ * `DELETE /admin/orgs/:id` — apaga a ONG e tudo que é dela. `block` (padrão
+ * `true`) também bloqueia o e-mail e o WhatsApp para um novo cadastro; use
+ * `false` numa remoção a pedido da própria ONG.
  */
-export async function deleteOrg(orgId: string, reason: string): Promise<void> {
+export async function deleteOrg(
+  orgId: string,
+  reason: string,
+  block: boolean = true,
+): Promise<void> {
   await request(`/admin/orgs/${orgId}`, {
     method: 'DELETE',
     authenticated: true,
-    body: JSON.stringify({ reason }),
+    body: JSON.stringify({ reason, block }),
+  })
+}
+
+export interface AdminOrgEdits {
+  name?: string
+  email?: string
+  whatsapp?: string
+  city?: string
+  address?: string
+}
+
+/**
+ * `PATCH /admin/orgs/:id` — corrige dados que a própria ONG não consegue
+ * editar. Mudar o e-mail reseta a verificação e reenvia a confirmação.
+ */
+export async function updateOrgAsAdmin(
+  orgId: string,
+  edits: AdminOrgEdits,
+): Promise<ApiOrgForReview> {
+  return request<ApiOrgForReview>(`/admin/orgs/${orgId}`, {
+    method: 'PATCH',
+    authenticated: true,
+    body: JSON.stringify(edits),
   })
 }

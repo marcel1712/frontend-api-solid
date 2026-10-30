@@ -4,6 +4,7 @@ import {
   Check,
   CheckCircle2,
   ExternalLink,
+  Pencil,
   RefreshCw,
   Trash2,
   X,
@@ -13,10 +14,17 @@ import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Card, OrgShell } from '@/components/OrgShell'
 import { buttonClass } from '@/components/button-styles'
-import { Button, Callout, TextAreaField } from '@/components/ui'
-import { recheckOrgCnpj, deleteOrg, fetchOrgsForReview, reviewOrg } from '@/lib/api'
+import { Button, Callout, Field, TextAreaField } from '@/components/ui'
+import {
+  recheckOrgCnpj,
+  deleteOrg,
+  fetchOrgsForReview,
+  reviewOrg,
+  updateOrgAsAdmin,
+} from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { formatCnpj } from '@/lib/cnpj'
+import { toE164 } from '@/lib/phone'
 import type { ApiOrgForReview, CnpjCheck, OrgStatus } from '@/lib/types'
 import { useRequest } from '@/lib/useRequest'
 import { NotFound } from './NotFound'
@@ -136,26 +144,31 @@ function OrgReviewCard({
   org: ApiOrgForReview
   onDecided: (message: string) => void
 }) {
+  const [currentOrg, setCurrentOrg] = useState(org)
   const [rejecting, setRejecting] = useState(false)
   const [reason, setReason] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteReason, setDeleteReason] = useState('')
+  const [blockContact, setBlockContact] = useState(true)
   const [deletingSaving, setDeletingSaving] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editingSaving, setEditingSaving] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
 
   async function decide(decision: 'approve' | 'reject') {
     setSaving(true)
     setError(null)
     try {
       await reviewOrg(
-        org.id,
+        currentOrg.id,
         decision === 'approve' ? { decision } : { decision, reason: reason.trim() },
       )
       onDecided(
         decision === 'approve'
-          ? `${org.name} foi aprovada e já aparece na busca.`
-          : `${org.name} foi recusada. O motivo foi enviado por e-mail.`,
+          ? `${currentOrg.name} foi aprovada e já aparece na busca.`
+          : `${currentOrg.name} foi recusada. O motivo foi enviado por e-mail.`,
       )
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Não foi possível salvar a decisão.')
@@ -167,144 +180,241 @@ function OrgReviewCard({
     setDeletingSaving(true)
     setError(null)
     try {
-      await deleteOrg(org.id, deleteReason.trim())
-      onDecided(`${org.name} foi excluída. O e-mail e o WhatsApp não podem se cadastrar de novo.`)
+      await deleteOrg(currentOrg.id, deleteReason.trim(), blockContact)
+      onDecided(
+        blockContact
+          ? `${currentOrg.name} foi excluída. O e-mail e o WhatsApp não podem se cadastrar de novo.`
+          : `${currentOrg.name} foi excluída. O e-mail e o WhatsApp continuam livres para um novo cadastro.`,
+      )
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Não foi possível excluir.')
       setDeletingSaving(false)
     }
   }
 
+  async function handleEdit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setEditingSaving(true)
+    setEditError(null)
+    try {
+      const form = new FormData(event.currentTarget)
+      const whatsapp = toE164(String(form.get('whatsapp') ?? ''))
+      if (!whatsapp) {
+        setEditError('Informe um número com DDD, como (11) 98765-4321.')
+        setEditingSaving(false)
+        return
+      }
+      const updated = await updateOrgAsAdmin(currentOrg.id, {
+        name: String(form.get('name') ?? '').trim(),
+        email: String(form.get('email') ?? '').trim(),
+        whatsapp,
+        city: String(form.get('city') ?? '').trim(),
+        address: String(form.get('address') ?? '').trim(),
+      })
+      setCurrentOrg(updated)
+      setEditing(false)
+    } catch (cause) {
+      setEditError(cause instanceof Error ? cause.message : 'Não foi possível salvar.')
+    } finally {
+      setEditingSaving(false)
+    }
+  }
+
   return (
     <Card>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-2xl">{org.name}</h2>
+        <h2 className="text-2xl">{currentOrg.name}</h2>
         <p className="text-sm font-bold text-ink-soft">
-          Cadastro em {new Date(org.created_at).toLocaleDateString('pt-BR')}
+          Cadastro em {new Date(currentOrg.created_at).toLocaleDateString('pt-BR')}
         </p>
       </div>
 
-      <dl className="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[auto_1fr]">
-        <dt className="font-bold text-ink-soft">CNPJ</dt>
-        <dd className="font-semibold">{org.cnpj ? formatCnpj(org.cnpj) : '—'}</dd>
-        <dt className="font-bold text-ink-soft">E-mail</dt>
-        <dd className="font-semibold break-all">{org.email}</dd>
-        <dt className="font-bold text-ink-soft">WhatsApp</dt>
-        <dd className="font-semibold">{org.whatsapp}</dd>
-        <dt className="font-bold text-ink-soft">Endereço</dt>
-        <dd className="font-semibold">
-          {org.address} — {org.city}
-        </dd>
-        {org.rejectionReason ? (
-          <>
-            <dt className="font-bold text-ink-soft">Última recusa</dt>
-            <dd className="font-semibold">{org.rejectionReason}</dd>
-          </>
-        ) : null}
-      </dl>
-
-      <div className="mt-5">
-        <CnpjReport orgId={org.id} initial={org.cnpjCheck} />
-      </div>
-
-      {org.documents.length ? (
-        <ul className="mt-5 flex flex-wrap gap-2">
-          {org.documents.map((document) => (
-            <li key={document.kind}>
-              {/* Link assinado de 10 minutos: recarregue a lista se expirar. */}
-              <a
-                href={document.url}
-                target="_blank"
-                rel="noreferrer"
-                className={buttonClass({ variant: 'outline', size: 'sm' })}
-              >
-                <ExternalLink className="size-4" aria-hidden />
-                {DOCUMENT_LABEL[document.kind]}
-              </a>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
-      {org.status === 'UnderReview' ? (
-        <div className="mt-6 border-t border-hairline pt-5">
-          {rejecting ? (
-            <div className="flex flex-col gap-4">
-              <TextAreaField
-                label="Motivo da recusa"
-                hint="Vai para a ONG por e-mail, do jeito que estiver aqui. Diga o que corrigir."
-                rows={3}
-                value={reason}
-                onChange={(event) => setReason(event.target.value)}
-              />
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  onClick={() => void decide('reject')}
-                  disabled={saving || reason.trim().length < MIN_REASON}
-                >
-                  <X className="size-4" aria-hidden />
-                  {saving ? 'Recusando…' : 'Recusar e avisar a ONG'}
-                </Button>
-                <Button variant="ghost" onClick={() => setRejecting(false)} disabled={saving}>
-                  Cancelar
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              <Button variant="accent" onClick={() => void decide('approve')} disabled={saving}>
-                <Check className="size-4" aria-hidden />
-                {saving ? 'Aprovando…' : 'Aprovar'}
-              </Button>
-              <Button variant="outline" onClick={() => setRejecting(true)} disabled={saving}>
-                Recusar
-              </Button>
-            </div>
-          )}
-          <p className="mt-3 text-sm font-semibold text-ink-soft">
-            Aprovar ou recusar apaga os documentos. Fica só a decisão.
-          </p>
-        </div>
-      ) : null}
-
-      <div className="mt-6 border-t border-hairline pt-5">
-        {deleting ? (
-          <div className="flex flex-col gap-4">
-            <TextAreaField
-              label="Motivo da exclusão"
-              hint="Fica registrado junto ao bloqueio do e-mail e do WhatsApp. Não é enviado para ninguém."
-              rows={3}
-              value={deleteReason}
-              onChange={(event) => setDeleteReason(event.target.value)}
-            />
-            <div className="flex flex-wrap gap-2">
-              <Button
-                onClick={() => void handleDelete()}
-                disabled={deletingSaving || deleteReason.trim().length < MIN_REASON}
-              >
-                <Trash2 className="size-4" aria-hidden />
-                {deletingSaving ? 'Excluindo…' : 'Excluir e bloquear'}
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => setDeleting(false)}
-                disabled={deletingSaving}
-              >
-                Cancelar
-              </Button>
-            </div>
+      {editing ? (
+        <form onSubmit={(event) => void handleEdit(event)} className="mt-4 flex flex-col gap-4">
+          <Field name="name" label="Nome da ONG" defaultValue={currentOrg.name} required />
+          <Field
+            name="email"
+            label="E-mail"
+            type="email"
+            defaultValue={currentOrg.email}
+            required
+          />
+          <Field name="whatsapp" label="WhatsApp" type="tel" defaultValue={currentOrg.whatsapp} />
+          <Field name="city" label="Cidade" defaultValue={currentOrg.city} required />
+          <Field name="address" label="Endereço" defaultValue={currentOrg.address} required />
+          {editError ? (
+            <p role="alert" className="text-sm font-bold text-brand-deep">
+              {editError}
+            </p>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" disabled={editingSaving}>
+              {editingSaving ? 'Salvando…' : 'Salvar'}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setEditing(false)}
+              disabled={editingSaving}
+            >
+              Cancelar
+            </Button>
           </div>
-        ) : (
-          <Button variant="outline" onClick={() => setDeleting(true)}>
-            <Trash2 className="size-4" aria-hidden />
-            Excluir cadastro
-          </Button>
-        )}
-        <p className="mt-3 text-sm font-semibold text-ink-soft">
-          Apaga a ONG, os pets e os documentos dela. O e-mail e o WhatsApp usados ficam
-          bloqueados para um novo cadastro — use para contas falsas ou de má-fé.
-        </p>
-      </div>
+          <p className="text-sm font-semibold text-ink-soft">
+            Mudar o e-mail reseta a verificação: a ONG recebe um novo link de confirmação e não
+            consegue entrar até confirmar.
+          </p>
+        </form>
+      ) : (
+        <>
+          <dl className="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[auto_1fr]">
+            <dt className="font-bold text-ink-soft">CNPJ</dt>
+            <dd className="font-semibold">
+              {currentOrg.cnpj ? formatCnpj(currentOrg.cnpj) : '—'}
+            </dd>
+            <dt className="font-bold text-ink-soft">E-mail</dt>
+            <dd className="font-semibold break-all">{currentOrg.email}</dd>
+            <dt className="font-bold text-ink-soft">WhatsApp</dt>
+            <dd className="font-semibold">{currentOrg.whatsapp}</dd>
+            <dt className="font-bold text-ink-soft">Endereço</dt>
+            <dd className="font-semibold">
+              {currentOrg.address} — {currentOrg.city}
+            </dd>
+            {currentOrg.rejectionReason ? (
+              <>
+                <dt className="font-bold text-ink-soft">Última recusa</dt>
+                <dd className="font-semibold">{currentOrg.rejectionReason}</dd>
+              </>
+            ) : null}
+          </dl>
+
+          <div className="mt-3">
+            <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+              <Pencil className="size-4" aria-hidden />
+              Editar dados
+            </Button>
+          </div>
+
+          <div className="mt-5">
+            <CnpjReport orgId={currentOrg.id} initial={currentOrg.cnpjCheck} />
+          </div>
+
+          {currentOrg.documents.length ? (
+            <ul className="mt-5 flex flex-wrap gap-2">
+              {currentOrg.documents.map((document) => (
+                <li key={document.kind}>
+                  {/* Link assinado de 10 minutos: recarregue a lista se expirar. */}
+                  <a
+                    href={document.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={buttonClass({ variant: 'outline', size: 'sm' })}
+                  >
+                    <ExternalLink className="size-4" aria-hidden />
+                    {DOCUMENT_LABEL[document.kind]}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          {currentOrg.status === 'UnderReview' ? (
+            <div className="mt-6 border-t border-hairline pt-5">
+              {rejecting ? (
+                <div className="flex flex-col gap-4">
+                  <TextAreaField
+                    label="Motivo da recusa"
+                    hint="Vai para a ONG por e-mail, do jeito que estiver aqui. Diga o que corrigir."
+                    rows={3}
+                    value={reason}
+                    onChange={(event) => setReason(event.target.value)}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      onClick={() => void decide('reject')}
+                      disabled={saving || reason.trim().length < MIN_REASON}
+                    >
+                      <X className="size-4" aria-hidden />
+                      {saving ? 'Recusando…' : 'Recusar e avisar a ONG'}
+                    </Button>
+                    <Button variant="ghost" onClick={() => setRejecting(false)} disabled={saving}>
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="accent"
+                    onClick={() => void decide('approve')}
+                    disabled={saving}
+                  >
+                    <Check className="size-4" aria-hidden />
+                    {saving ? 'Aprovando…' : 'Aprovar'}
+                  </Button>
+                  <Button variant="outline" onClick={() => setRejecting(true)} disabled={saving}>
+                    Recusar
+                  </Button>
+                </div>
+              )}
+              <p className="mt-3 text-sm font-semibold text-ink-soft">
+                Aprovar ou recusar apaga os documentos. Fica só a decisão.
+              </p>
+            </div>
+          ) : null}
+
+          <div className="mt-6 border-t border-hairline pt-5">
+            {deleting ? (
+              <div className="flex flex-col gap-4">
+                <TextAreaField
+                  label="Motivo da exclusão"
+                  hint="Fica registrado para histórico. Não é enviado para ninguém."
+                  rows={3}
+                  value={deleteReason}
+                  onChange={(event) => setDeleteReason(event.target.value)}
+                />
+                <label className="flex items-center gap-2 text-sm font-semibold text-ink-soft">
+                  <input
+                    type="checkbox"
+                    checked={blockContact}
+                    onChange={(event) => setBlockContact(event.target.checked)}
+                  />
+                  Bloquear o e-mail e o WhatsApp dela para um novo cadastro
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={() => void handleDelete()}
+                    disabled={deletingSaving || deleteReason.trim().length < MIN_REASON}
+                  >
+                    <Trash2 className="size-4" aria-hidden />
+                    {deletingSaving
+                      ? 'Excluindo…'
+                      : blockContact
+                        ? 'Excluir e bloquear'
+                        : 'Excluir'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setDeleting(false)}
+                    disabled={deletingSaving}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button variant="outline" onClick={() => setDeleting(true)}>
+                <Trash2 className="size-4" aria-hidden />
+                Excluir cadastro
+              </Button>
+            )}
+            <p className="mt-3 text-sm font-semibold text-ink-soft">
+              Apaga a ONG, os pets e os documentos dela. Deixe o bloqueio marcado para contas
+              falsas ou de má-fé; desmarque numa remoção pedida pela própria ONG.
+            </p>
+          </div>
+        </>
+      )}
 
       {error ? (
         <p role="alert" className="mt-3 text-sm font-bold text-brand-deep">
