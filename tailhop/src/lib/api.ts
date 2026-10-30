@@ -54,12 +54,15 @@ export class ApiError extends Error {
   status?: number
   /** Campos recusados pelo Zod, quando a API manda o detalhe. */
   fields?: string[]
+  /** Código da API para distinguir motivos que compartilham o mesmo status (ex.: 422). */
+  code?: string
 
-  constructor(message: string, status?: number, fields?: string[]) {
+  constructor(message: string, status?: number, fields?: string[], code?: string) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.fields = fields
+    this.code = code
   }
 
   /** Sessão ausente ou expirada: quem chamou deve mandar a ONG para o login. */
@@ -137,7 +140,8 @@ async function request<T>(path: string, init?: RequestOptions): Promise<T> {
     // que corrigir — foi assim que um WhatsApp fora do formato E.164 virou um
     // erro mudo.
     const fields = await failedFields(response)
-    throw new ApiError(messageForStatus(response.status, fields), response.status, fields)
+    const code = await failureCode(response)
+    throw new ApiError(messageForStatus(response.status, fields), response.status, fields, code)
   }
 
   if (response.status === 204) return undefined as T
@@ -175,6 +179,16 @@ async function failedFields(response: Response): Promise<string[] | undefined> {
       .filter((name): name is string => typeof name === 'string')
 
     return names.length ? [...new Set(names)] : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** Código que distingue motivos que compartilham o mesmo status, ex.: 422. */
+async function failureCode(response: Response): Promise<string | undefined> {
+  try {
+    const body = (await response.clone().json()) as { code?: string }
+    return body.code
   } catch {
     return undefined
   }
@@ -655,13 +669,41 @@ export async function recheckOrgCnpj(orgId: string): Promise<CnpjCheck> {
 }
 
 /**
- * `DELETE /admin/orgs/:id` — apaga a ONG e tudo que é dela; o e-mail e o
- * WhatsApp ficam bloqueados para um novo cadastro.
+ * `DELETE /admin/orgs/:id` — apaga a ONG e tudo que é dela. `block` (padrão
+ * `true`) também bloqueia o e-mail e o WhatsApp para um novo cadastro; use
+ * `false` numa remoção a pedido da própria ONG.
  */
-export async function deleteOrg(orgId: string, reason: string): Promise<void> {
+export async function deleteOrg(
+  orgId: string,
+  reason: string,
+  block: boolean = true,
+): Promise<void> {
   await request(`/admin/orgs/${orgId}`, {
     method: 'DELETE',
     authenticated: true,
-    body: JSON.stringify({ reason }),
+    body: JSON.stringify({ reason, block }),
+  })
+}
+
+export interface AdminOrgEdits {
+  name?: string
+  email?: string
+  whatsapp?: string
+  city?: string
+  address?: string
+}
+
+/**
+ * `PATCH /admin/orgs/:id` — corrige dados que a própria ONG não consegue
+ * editar. Mudar o e-mail reseta a verificação e reenvia a confirmação.
+ */
+export async function updateOrgAsAdmin(
+  orgId: string,
+  edits: AdminOrgEdits,
+): Promise<ApiOrgForReview> {
+  return request<ApiOrgForReview>(`/admin/orgs/${orgId}`, {
+    method: 'PATCH',
+    authenticated: true,
+    body: JSON.stringify(edits),
   })
 }
