@@ -54,12 +54,15 @@ export class ApiError extends Error {
   status?: number
   /** Campos recusados pelo Zod, quando a API manda o detalhe. */
   fields?: string[]
+  /** Código da API para distinguir motivos que compartilham o mesmo status (ex.: 422). */
+  code?: string
 
-  constructor(message: string, status?: number, fields?: string[]) {
+  constructor(message: string, status?: number, fields?: string[], code?: string) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.fields = fields
+    this.code = code
   }
 
   /** Sessão ausente ou expirada: quem chamou deve mandar a ONG para o login. */
@@ -137,7 +140,8 @@ async function request<T>(path: string, init?: RequestOptions): Promise<T> {
     // que corrigir — foi assim que um WhatsApp fora do formato E.164 virou um
     // erro mudo.
     const fields = await failedFields(response)
-    throw new ApiError(messageForStatus(response.status, fields), response.status, fields)
+    const code = await failureCode(response)
+    throw new ApiError(messageForStatus(response.status, fields), response.status, fields, code)
   }
 
   if (response.status === 204) return undefined as T
@@ -175,6 +179,16 @@ async function failedFields(response: Response): Promise<string[] | undefined> {
       .filter((name): name is string => typeof name === 'string')
 
     return names.length ? [...new Set(names)] : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** Código que distingue motivos que compartilham o mesmo status, ex.: 422. */
+async function failureCode(response: Response): Promise<string | undefined> {
+  try {
+    const body = (await response.clone().json()) as { code?: string }
+    return body.code
   } catch {
     return undefined
   }

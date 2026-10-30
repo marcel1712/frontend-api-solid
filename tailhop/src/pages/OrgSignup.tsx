@@ -76,10 +76,15 @@ export function OrgSignup() {
       })
       setSent(true)
     } catch (cause) {
-      // O 422 é a Receita dizendo que o CNPJ não existe: a conta de dígitos
-      // passou, então é número trocado — o erro vai no próprio campo.
+      // O 422 é a Receita dizendo algo sobre o CNPJ em si — qual exatamente
+      // vem no `code`, já que "não existe" e "não é uma entidade sem fins
+      // lucrativos" pedem mensagens (e correções) bem diferentes.
       if (cause instanceof ApiError && cause.status === 422) {
-        setCnpjError('Não encontramos este CNPJ na Receita Federal. Confira os números.')
+        setCnpjError(
+          cause.code === 'CNPJ_NOT_ELIGIBLE'
+            ? 'Este CNPJ é de uma empresa com fins lucrativos. Só aceitamos ONGs (associações, fundações etc).'
+            : 'Não encontramos este CNPJ na Receita Federal. Confira os números.',
+        )
         setSubmitting(false)
         return
       }
