@@ -1,11 +1,11 @@
 /**
  * Regras de senha do cadastro de ONG.
  *
- * Vale registrar o que isto é e o que não é: validação no cliente é orientação,
- * não segurança. Qualquer um fala com `POST /orgs` direto e passa por cima
- * daqui — hoje a API só exige de 6 a 100 caracteres. Para virar regra de
- * verdade, o mesmo critério precisa existir no backend; aqui ele serve para a
- * pessoa escolher uma senha melhor antes de errar.
+ * Validação no cliente é orientação, não segurança: qualquer um fala com a API
+ * direto. Quem garante a regra é o backend (`api-solid/src/utils/password-policy.ts`),
+ * que aplica exatamente estes critérios no cadastro e na troca de senha. Aqui
+ * eles servem para a pessoa escolher uma senha boa antes de errar — mudou um
+ * lado, mude o outro.
  */
 
 export const MIN_PASSWORD_LENGTH = 10

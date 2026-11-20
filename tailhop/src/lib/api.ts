@@ -499,8 +499,9 @@ export async function resendVerificationEmail(email: string): Promise<void> {
  * XHR em vez de `fetch` porque só ele reporta progresso de upload, e uma foto
  * de celular em rede ruim sem barra de progresso parece travada.
  *
- * O `Content-Type` precisa ser idêntico ao que assinou a URL — o R2 responde
- * 403 se divergir. Como ambos saem de `file.type`, batem por construção.
+ * `Content-Type` e `Content-Length` precisam ser idênticos aos que assinaram a
+ * URL — o R2 responde 403 se divergirem. Ambos saem do próprio `File`, então
+ * batem por construção.
  */
 function putSignedFile(
   uploadUrl: string,
@@ -545,7 +546,9 @@ export async function uploadPetPhoto(
   const ticket = await request<UploadTicket>(`/pets/${petId}/images`, {
     method: 'POST',
     authenticated: true,
-    body: JSON.stringify({ contentType: file.type }),
+    // Tipo e tamanho vão assinados na URL (o bucket é público): o R2 recusa
+    // qualquer arquivo diferente do anunciado aqui.
+    body: JSON.stringify({ contentType: file.type, size: file.size }),
   })
 
   await putSignedFile(ticket.uploadUrl, file, onProgress)
